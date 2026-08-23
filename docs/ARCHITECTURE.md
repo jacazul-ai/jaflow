@@ -110,9 +110,12 @@ The required public `sqlok` surface is:
 - SQLite in-memory and temporary-file test support;
 - low-complexity, wrapped errors suitable for the `Error as Prompt` boundary.
 
+`jaflow` owns the concrete `database/sql` driver and connection lifecycle.
 Driver choices such as `modernc.org/sqlite`, `go-libsql`, or a future Turso
-adapter belong inside `sqlok`. `jaflow` must consume the public `sqlok` API and
-must not import its `internal/` packages or embed parallel SQL strings.
+adapter are selected by `jaflow` and remain behind `ProjectStore`. `sqlok`
+receives the application-provided connection and SQLite dialect to generate and
+execute SQL. `jaflow` must not import `sqlok/internal` or embed a parallel SQL
+builder.
 
 Remote replication, primary URLs, credentials, and sync failure semantics are
 future backend concerns. Local feature parity must remain usable without them.
