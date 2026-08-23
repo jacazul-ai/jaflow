@@ -112,3 +112,36 @@ func TestHelpProvidesAgentWorkflowBriefing(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskLifecycleEnforcesOutcomeAndUnblocks(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	planOutput, err := runJaflow(t, binary, harness, "plan", "parity", "First", "Second")
+	if err != nil {
+		t.Fatalf("create plan: %v\n%s", err, planOutput)
+	}
+	matches := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindAllStringSubmatch(planOutput, -1)
+	if len(matches) != 2 {
+		t.Fatalf("plan output = %q, want two task UUIDs", planOutput)
+	}
+	first, second := matches[0][1], matches[1][1]
+
+	if output, err := runJaflow(t, binary, harness, "execute", first); err != nil {
+		t.Fatalf("execute first task: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "done", first)
+	if err == nil || !strings.Contains(output, "OUTCOME") {
+		t.Fatalf("done without outcome = %q, err %v; want OUTCOME gate", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "outcome", first, "First is complete"); err != nil {
+		t.Fatalf("record first outcome: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "done", first)
+	if err != nil || !strings.Contains(output, "Ready task "+second) {
+		t.Fatalf("complete first task = %q, err %v; want second ready", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "execute", second); err != nil {
+		t.Fatalf("execute second task: %v\n%s", err, output)
+	}
+}

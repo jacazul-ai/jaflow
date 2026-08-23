@@ -15,7 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 // Store persists one project's workflow state in SQLite.
 type Store struct {
@@ -153,7 +153,8 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 
 	query := `
 		SELECT t.id, t.initiative_id, i.name, t.description, t.mode,
-		       t.status, t.outcome, t.external_ticket
+		       t.status, t.outcome, t.external_ticket,
+		       t.started_at, t.completed_at, t.disposition
 		FROM tasks t
 		JOIN initiatives i ON i.id = t.initiative_id
 		WHERE i.project_id = ?
@@ -184,6 +185,9 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 			&status,
 			&current.Outcome,
 			&current.ExternalTicket,
+			&current.StartedAt,
+			&current.CompletedAt,
+			&current.Disposition,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
@@ -234,29 +238,58 @@ func (s *Store) migrate(ctx context.Context) error {
 		"SELECT COALESCE(MAX(version), 0) FROM schema_migrations").Scan(&version); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
-	if version >= schemaVersion {
-		return nil
+	for _, current := range migrations() {
+		if version >= current.version {
+			continue
+		}
+		if err := s.applyMigration(ctx, current); err != nil {
+			return err
+		}
+		version = current.version
 	}
+	return nil
+}
 
+type migration struct {
+	version    int
+	statements []string
+}
+
+func migrations() []migration {
+	return []migration{
+		{version: 1, statements: schemaV1()},
+		{version: 2, statements: schemaV2()},
+	}
+}
+
+func (s *Store) applyMigration(ctx context.Context, current migration) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin schema migration: %w", err)
+		return fmt.Errorf("begin schema migration %d: %w", current.version, err)
 	}
 	defer tx.Rollback()
-	for _, statement := range schemaV1() {
+	for _, statement := range current.statements {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("apply schema migration: %w", err)
+			return fmt.Errorf("apply schema migration %d: %w", current.version, err)
 		}
 	}
 	if _, err := tx.ExecContext(ctx,
 		"INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-		schemaVersion, timestamp()); err != nil {
-		return fmt.Errorf("record schema migration: %w", err)
+		current.version, timestamp()); err != nil {
+		return fmt.Errorf("record schema migration %d: %w", current.version, err)
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit schema migration: %w", err)
+		return fmt.Errorf("commit schema migration %d: %w", current.version, err)
 	}
 	return nil
+}
+
+func schemaV2() []string {
+	return []string{
+		"ALTER TABLE tasks ADD COLUMN started_at TEXT NOT NULL DEFAULT ''",
+		"ALTER TABLE tasks ADD COLUMN completed_at TEXT NOT NULL DEFAULT ''",
+		"ALTER TABLE tasks ADD COLUMN disposition TEXT NOT NULL DEFAULT ''",
+	}
 }
 
 func schemaV1() []string {

@@ -106,6 +106,22 @@ the agent needs to recover.
 abstractions over the application-provided `database/sql` connection. The
 workflow engine must not embed a second SQL builder or import `sqlok/internal`.
 
+## Task lifecycle
+
+Tasks inside an initiative form a dependency chain. A blocked task cannot be
+started until its dependency is complete:
+
+```bash
+jaflow plan parity "Define schema" "Implement store"
+jaflow execute <first-uuid>
+jaflow outcome <first-uuid> "Schema defined"
+jaflow done <first-uuid>
+```
+
+`done` requires an `OUTCOME` and reports the next task released by the chain.
+Use `jaflow help <command>` for prerequisites, side effects, recovery actions,
+and the next valid command.
+
 ## Future server orchestration
 
 The first versions can operate locally, but the design should not block a future centralized coordination layer.

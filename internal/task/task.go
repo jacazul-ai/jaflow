@@ -47,6 +47,9 @@ type Task struct {
 	Status         Status   `json:"status"`
 	Outcome        string   `json:"outcome,omitempty"`
 	ExternalTicket string   `json:"external_ticket,omitempty"`
+	StartedAt      string   `json:"started_at,omitempty"`
+	CompletedAt    string   `json:"completed_at,omitempty"`
+	Disposition    string   `json:"disposition,omitempty"`
 	Dependencies   []string `json:"dependencies,omitempty"`
 
 	// ProjectID and Plan are compatibility fields for the legacy adapter.
