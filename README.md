@@ -31,7 +31,10 @@ jacazul-ai-cli/tw-flow-to-go/skills/taskwarrior-expert
 
 The migration scope includes:
 
-- per-project task database isolation
+- one native SQLite database per canonical `PROJECT_ID`
+- `sqlok` as the official SQLAlchemy-like SQL/schema layer
+- a driver owned by `jaflow`, selected independently from `sqlok`
+- per-project database isolation
 - plan/initiative creation
 - task focus and anchor management
 - task execution modes such as `DESIGN`, `INVESTIGATE`, `GUIDE`, `EXECUTE`, `TEST`, `DEBUG`, and `REVIEW`
@@ -44,6 +47,14 @@ The migration scope includes:
 Long-term, `jaflow` should implement the Taskwarrior-like behavior needed by Jacazul workflows directly in Go. Taskwarrior compatibility is a design constraint, not the final architecture.
 
 The local engine should also be designed so it can connect to a centralized server in the future. That server would orchestrate tasks, context, session state, and agent workflow coordination across machines or agents when needed.
+
+## Documentation
+
+- [Vision](docs/VISION.md): mission, operational memory, and team direction.
+- [Architecture](docs/ARCHITECTURE.md): local Coordinator, backends, and
+  future team orchestration.
+- [Feature parity](docs/feature-parity.md): reference contracts, test audit,
+  implementation backlog, and parity completion criteria.
 
 ## Consumer project
 
@@ -75,6 +86,25 @@ jaflow ponder
 ```
 
 The command registry should become the source of truth for command metadata, routing, and help rendering. The parser is an implementation detail; it should not dictate the user experience.
+
+Agent-facing help is an operational briefing, not a short usage line:
+
+```text
+jaflow help
+jaflow help plan
+```
+
+Help explains the workflow role, prerequisites, dependency effects, state
+transitions, output, actionable errors, examples, and the next valid command.
+Errors follow the `Error as Prompt` contract and include an `ACTION:` whenever
+the agent needs to recover.
+
+## Local storage direction
+
+`jaflow` owns the database driver and opens one SQLite database per project.
+`sqlok` owns SQL generation, schema definitions, migrations, and query/session
+abstractions over the application-provided `database/sql` connection. The
+workflow engine must not embed a second SQL builder or import `sqlok/internal`.
 
 ## Future server orchestration
 

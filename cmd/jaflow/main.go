@@ -26,12 +26,7 @@ func main() {
 
 	parser.CommandHandler = config.WithAppOptions(&opts)
 
-	parser.AddCommand(
-		"help",
-		"Display help",
-		"Display help infomation about jaflow",
-		cli.NewHelpCommand(parser),
-	)
+	cli.RegisterCommands(parser)
 
 	_, err := parser.Parse()
 	if err != nil {
@@ -43,8 +38,9 @@ func main() {
 			parser.WriteHelp(os.Stdout)
 			os.Exit(0)
 		}
-		fmt.Fprintln(os.Stderr, err)
-		parser.WriteHelp(os.Stdout)
-		os.Exit(0)
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		fmt.Fprintln(os.Stderr, "ACTION: Review the command syntax or run 'jaflow help'.")
+		parser.WriteHelp(os.Stderr)
+		os.Exit(1)
 	}
 }
