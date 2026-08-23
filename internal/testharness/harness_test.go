@@ -57,3 +57,41 @@ func TestFakeCommandUsesIsolatedPath(t *testing.T) {
 		t.Fatalf("fake task output = %q, want %q", output, "task:export\\n")
 	}
 }
+
+func TestHarnessProvidesIndependentProjectDatabasePaths(t *testing.T) {
+	first := NewHarness(t, "project-alpha", "session-one")
+	second := NewHarness(t, "project-beta", "session-two")
+
+	if first.DatabasePath == "" {
+		t.Fatal("first harness database path is empty")
+	}
+	if second.DatabasePath == "" {
+		t.Fatal("second harness database path is empty")
+	}
+	if first.DatabasePath == second.DatabasePath {
+		t.Fatal("harnesses must use different project database paths")
+	}
+	if got := environmentValue(first.Environment, "JAFLOW_DATABASE_PATH"); got != first.DatabasePath {
+		t.Fatalf("first harness database environment = %q, want %q", got, first.DatabasePath)
+	}
+	if got := environmentValue(second.Environment, "JAFLOW_DATABASE_PATH"); got != second.DatabasePath {
+		t.Fatalf("second harness database environment = %q, want %q", got, second.DatabasePath)
+	}
+
+	if err := os.WriteFile(first.DatabasePath, []byte("alpha"), 0o600); err != nil {
+		t.Fatalf("write first database fixture: %v", err)
+	}
+	if _, err := os.Stat(second.DatabasePath); !os.IsNotExist(err) {
+		t.Fatalf("second project database unexpectedly exists: %v", err)
+	}
+}
+
+func environmentValue(environment []string, key string) string {
+	prefix := key + "="
+	for _, entry := range environment {
+		if len(entry) >= len(prefix) && entry[:len(prefix)] == prefix {
+			return entry[len(prefix):]
+		}
+	}
+	return ""
+}

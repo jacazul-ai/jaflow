@@ -11,13 +11,14 @@ import (
 
 // Harness owns isolated filesystem and environment state for a contract test.
 type Harness struct {
-	Root        string
-	ProjectID   string
-	SessionID   string
-	TaskData    string
-	CacheDir    string
-	BinDir      string
-	Environment []string
+	Root         string
+	ProjectID    string
+	SessionID    string
+	TaskData     string
+	CacheDir     string
+	BinDir       string
+	DatabasePath string
+	Environment  []string
 }
 
 // NewHarness creates isolated project, session, cache, and executable state.
@@ -26,18 +27,20 @@ func NewHarness(t *testing.T, projectID string, sessionID string) *Harness {
 
 	root := t.TempDir()
 	harness := &Harness{
-		Root:      root,
-		ProjectID: projectID,
-		SessionID: sessionID,
-		TaskData:  filepath.Join(root, "taskdata"),
-		CacheDir:  filepath.Join(root, "cache"),
-		BinDir:    filepath.Join(root, "bin"),
+		Root:         root,
+		ProjectID:    projectID,
+		SessionID:    sessionID,
+		TaskData:     filepath.Join(root, "taskdata"),
+		CacheDir:     filepath.Join(root, "cache"),
+		BinDir:       filepath.Join(root, "bin"),
+		DatabasePath: filepath.Join(root, "database", "jaflow.sqlite3"),
 	}
 
 	for _, path := range []string{
 		harness.TaskData,
 		harness.CacheDir,
 		harness.BinDir,
+		filepath.Dir(harness.DatabasePath),
 	} {
 		if err := os.MkdirAll(path, 0o755); err != nil {
 			t.Fatalf("create isolated harness directory %q: %v", path, err)
@@ -48,6 +51,7 @@ func NewHarness(t *testing.T, projectID string, sessionID string) *Harness {
 	t.Setenv("PROJECT_ID", projectID)
 	t.Setenv("TASKDATA", harness.TaskData)
 	t.Setenv("JAFLOW_CACHE_DIR", harness.CacheDir)
+	t.Setenv("JAFLOW_DATABASE_PATH", harness.DatabasePath)
 	t.Setenv("JACAZUL_SESSION_ID", sessionID)
 	t.Setenv("JACAZUL_HOME", filepath.Join(root, ".jacazul-ai"))
 
@@ -57,6 +61,7 @@ func NewHarness(t *testing.T, projectID string, sessionID string) *Harness {
 		"PROJECT_ID="+projectID,
 		"TASKDATA="+harness.TaskData,
 		"JAFLOW_CACHE_DIR="+harness.CacheDir,
+		"JAFLOW_DATABASE_PATH="+harness.DatabasePath,
 		"JACAZUL_SESSION_ID="+sessionID,
 		"JACAZUL_HOME="+filepath.Join(root, ".jacazul-ai"),
 	)
