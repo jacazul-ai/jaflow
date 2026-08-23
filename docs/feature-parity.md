@@ -15,6 +15,16 @@ Reference tests:
 ~/source/jacazul-ai/jacazul-ai-cli/master/tests
 ```
 
+The local source of truth is a native SQLite database with one physical file
+per canonical `PROJECT_ID`. An initiative/plan is a first-class record; a
+Taskwarrior `project` value is only a compatibility projection or migration
+key. Sessions and cache records are scoped by `session_id` inside the owning
+project database.
+
+The in-repository `internal/testharness` owns sandboxed database fixtures.
+Every parity slice must test its behavior locally and must prove that separate
+project databases cannot observe one another's state.
+
 ## Current Phase Rule
 
 This is a temporary rule for the porting phase only:
@@ -47,6 +57,7 @@ areas:
 | Backlog | `test_backlog.py` | Port hide/show/activate behavior and state markers |
 | Roadmap | `test_roadmap_init_guard.py` | Port duplicate-ledger protection for pending and completed phases |
 | Safety | `security_test.py`, `flow_test.py` | Port workflow vaccination, outcome gates, and actionable errors |
+| Operational output | `AGENTS.md` Error as Prompt/Prompt as Ad rules | Keep healthy verification quiet, emit state changes, and provide `ACTION:` guidance on failures |
 | Ticket boundary | selected `flow_test.py` tests | Port metadata persistence and inherited ticket awareness; provider brokers remain external |
 
 The initial inventory identified 104 candidate core/runtime tests:
@@ -79,25 +90,32 @@ These reference tests must not be copied blindly:
 A test is valid for parity only when it has an explicit contract, isolated
 fixtures, a meaningful oracle, and fails under a relevant mutation.
 
+Error and output contracts are part of parity: failures must guide the next
+valid action, while healthy verification must not become noisy protocol dump.
+
 ## Implementation Backlog
 
-Implement in this order, keeping one command boundary per feature slice:
+Implement in this order, keeping one command boundary per feature slice and
+keeping tests inside the slice that they protect:
 
-1. Isolated Go contract-test harness for project, session, cache, filesystem,
-   and external-command state.
-2. Command registry, global options, process-boundary errors, and project-scoped
-   state foundation.
-3. Plan/task lifecycle: creation, dependency readiness, execute, outcome,
-   done, reopen, discard, and handoff.
-4. Focus and context: global focus, task stack, smart focus, independent
-   sessions, annotations, inherited context, and ticket metadata.
-5. Dashboard and cache: status, ponder, plans, cache TTL, cached signals,
-   force refresh, selective invalidation, and session isolation.
-6. Backlog, roadmap, recently closed history, and duplicate-ledger guards.
-7. Safety and parity hardening: actionable errors, workflow restrictions,
-   mutation checks, and regression coverage.
-8. Final review of complexity, security, documentation, and Go 1.25/1.26
-   validation.
+1. Define storage boundaries, the first-class initiative model, and the
+   per-project SQLite schema contract.
+2. Build the in-repository sandboxed SQLite contract harness with separate
+   database files per project and baseline parity tests.
+3. Implement SQLite migrations, command registry, global options, process
+   boundary errors, and project-scoped state.
+4. Implement plan/task lifecycle: creation, dependency readiness, execute,
+   outcome, done, reopen, discard, and handoff.
+5. Implement focus and context: task stack, smart focus, independent sessions,
+   annotations, inherited context, ticket metadata, and session-scoped cache.
+6. Implement dashboards and derived views: status, ponder, plans, cache TTL,
+   cached signals, force refresh, invalidation, backlog, roadmap, recently
+   closed history, tree, and commit drafts.
+7. Perform final safety, parity, mutation, documentation, race, and vet review.
+
+Tasks 2 through 6 must each follow Red-Green-Refactor with focused contract
+coverage and a relevant mutation check. Task 7 is a final review gate, not the
+first place tests are defined.
 
 ## Command Architecture
 
@@ -107,9 +125,15 @@ Follow the `nvimim` CLI pattern:
 cmd/jaflow/main.go       parser, global options, command registry, process exit
 internal/cli/             one command type and Execute method per command
 internal/workflow/        small shared workflow behavior
-internal/storage/         project/session persistence boundaries
-internal/cache/           cache policy and invalidation
+internal/storage/         project database and persistence boundaries
+internal/storage/sqlite/  schema, migrations, transactions, queries
+internal/cache/           cache policy and invalidation behavior
+internal/testharness/     isolated project databases and fake externals
 ```
+
+The CLI must not infer initiative lifecycle from a Taskwarrior project string.
+Commands call the local store through focused behavior boundaries and render
+results; they do not manipulate SQLite tables directly.
 
 Do not translate the Python `FlowManager` into a Go monolith. Feature parity is
 measured per command and per contract, not by matching the old class layout.
@@ -135,6 +159,10 @@ A parity slice is complete only when:
 - the implementation passes the test;
 - relevant mutations make the test fail;
 - fixtures cannot touch real project or user state;
+- each project uses a separate SQLite database selected from canonical
+  `PROJECT_ID`;
+- initiative lifecycle is persisted independently from task grouping;
 - command complexity remains local and reviewable;
+- affected documentation is updated in the same atomic change;
 - `gofmt`, `go test`, `go test -race`, and `go vet` pass;
 - behavior and residual differences are documented.
