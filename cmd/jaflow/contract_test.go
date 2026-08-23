@@ -145,3 +145,56 @@ func TestTaskLifecycleEnforcesOutcomeAndUnblocks(t *testing.T) {
 		t.Fatalf("execute second task: %v\n%s", err, output)
 	}
 }
+
+func TestFocusSwitchesTaskStack(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	planOutput, err := runJaflow(t, binary, harness, "plan", "focus", "First", "Second")
+	if err != nil {
+		t.Fatalf("create focus plan: %v\n%s", err, planOutput)
+	}
+	matches := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindAllStringSubmatch(planOutput, -1)
+	if len(matches) != 2 {
+		t.Fatalf("plan output = %q, want two task UUIDs", planOutput)
+	}
+	first, second := matches[0][1], matches[1][1]
+
+	for _, taskID := range []string{first, second} {
+		if output, err := runJaflow(t, binary, harness, "focus", "task", taskID); err != nil {
+			t.Fatalf("focus task %s: %v\n%s", taskID, err, output)
+		}
+	}
+	output, err := runJaflow(t, binary, harness, "focus", "show")
+	if err != nil || !strings.Contains(output, "Task: "+second) {
+		t.Fatalf("focus show = %q, err %v; want second task", output, err)
+	}
+	output, err = runJaflow(t, binary, harness, "focus", "pop")
+	if err != nil || !strings.Contains(output, first) {
+		t.Fatalf("focus pop = %q, err %v; want first task", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "focus", "clear"); err != nil {
+		t.Fatalf("focus clear: %v\n%s", err, output)
+	}
+}
+
+func TestSessionListShowsCurrentAnchor(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	planOutput, err := runJaflow(t, binary, harness, "plan", "sessions", "First")
+	if err != nil {
+		t.Fatalf("create session plan: %v\n%s", err, planOutput)
+	}
+	match := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindStringSubmatch(planOutput)
+	if len(match) != 2 {
+		t.Fatalf("plan output = %q, want one task UUID", planOutput)
+	}
+	if output, err := runJaflow(t, binary, harness, "focus", "task", match[1]); err != nil {
+		t.Fatalf("focus session task: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "session", "list")
+	if err != nil || !strings.Contains(output, "* session") || !strings.Contains(output, match[1]) {
+		t.Fatalf("session list = %q, err %v; want current anchor", output, err)
+	}
+}

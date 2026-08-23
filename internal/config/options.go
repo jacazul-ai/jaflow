@@ -16,6 +16,7 @@ type AppOptions struct {
 	ProjectID    string `long:"project-id" description:"Project identity"`
 	TaskData     string `long:"taskdata" description:"Legacy Taskwarrior data directory"`
 	DatabasePath string `long:"database-path" env:"JAFLOW_DATABASE_PATH" description:"Project SQLite database path"`
+	SessionID    string `long:"session-id" env:"JACAZUL_SESSION_ID" description:"Workflow session identity"`
 }
 
 type AppOptionsAware interface {
@@ -66,6 +67,12 @@ func Resolve(opts *AppOptions) error {
 	}
 	if opts.TaskData == "" {
 		opts.TaskData = filepath.Join(home, ".task", opts.ProjectID)
+	}
+	if opts.SessionID == "" {
+		opts.SessionID = os.Getenv("JACAZUL_SESSION_ID")
+	}
+	if opts.SessionID == "" {
+		opts.SessionID = "global"
 	}
 	if opts.DatabasePath == "" {
 		opts.DatabasePath = filepath.Join(

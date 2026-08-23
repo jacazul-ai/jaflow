@@ -173,6 +173,40 @@ var helpEntries = []helpEntry{
 		examples: []string{"jaflow discard 57c3fc80"},
 		next:     "Run 'jaflow status' to inspect the remaining initiative chain.",
 	},
+	{
+		name:    "focus",
+		summary: "Switch the project and session focus",
+		usage:   "jaflow focus <show|plan|task|pop|clear> [value]",
+		role:    "Use this to move the agent anchor without losing the initiative chain.",
+		preconditions: []string{
+			"Focus is scoped to the selected PROJECT_ID and session ID.",
+			"focus task accepts a full UUID or an unambiguous short UUID.",
+		},
+		effects: []string{
+			"focus plan anchors the initiative and its next ready task.",
+			"focus task pushes a task onto the session stack; focus pop returns to the previous task.",
+			"focus clear removes the anchor but preserves the session record.",
+		},
+		examples: []string{
+			"jaflow focus show",
+			"jaflow focus plan parity",
+			"jaflow focus task 57c3fc80",
+			"jaflow focus pop",
+		},
+		next: "Run 'jaflow execute <uuid>' only after the focused task is ready.",
+	},
+	{
+		name:    "session",
+		summary: "Inspect project session anchors",
+		usage:   "jaflow session <list|show>",
+		role:    "Use this to inspect which sessions own focus state in the current project database.",
+		effects: []string{
+			"session list shows persisted session IDs and their initiative/task anchors.",
+			"session show renders the current session focus.",
+		},
+		examples: []string{"jaflow session list", "jaflow session show"},
+		next:     "Use 'jaflow focus task <uuid>' to switch the current session anchor.",
+	},
 }
 
 func findHelpEntry(name string) (helpEntry, bool) {

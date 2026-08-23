@@ -122,6 +122,22 @@ jaflow done <first-uuid>
 Use `jaflow help <command>` for prerequisites, side effects, recovery actions,
 and the next valid command.
 
+## Focus and session switching
+
+Focus is stored per project and session. The task stack makes switching work
+safe without losing the initiative anchor:
+
+```bash
+jaflow focus plan parity
+jaflow focus task <uuid>
+jaflow focus pop
+jaflow focus clear
+jaflow session list
+```
+
+Use `JACAZUL_SESSION_ID` to isolate one agent session from another while they
+share the same project database.
+
 ## Future server orchestration
 
 The first versions can operate locally, but the design should not block a future centralized coordination layer.

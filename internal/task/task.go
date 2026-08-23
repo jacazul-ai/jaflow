@@ -57,6 +57,31 @@ type Task struct {
 	Plan      string `json:"plan,omitempty"`
 }
 
+// FocusState stores the current navigation anchor for one project session.
+type FocusState struct {
+	ProjectID       string
+	SessionID       string
+	InitiativeID    string
+	FocusedTaskID   string
+	TaskStack       []FocusEntry
+	PlansOfInterest []string
+}
+
+// SessionInfo describes one persisted project session.
+type SessionInfo struct {
+	ProjectID     string
+	SessionID     string
+	InitiativeID  string
+	FocusedTaskID string
+	UpdatedAt     string
+}
+
+// FocusEntry records one task in the focus stack.
+type FocusEntry struct {
+	TaskID       string `json:"task_id"`
+	InitiativeID string `json:"initiative_id"`
+}
+
 // CreateTaskInput contains the fields required to create a workflow task.
 type CreateTaskInput struct {
 	InitiativeID string
