@@ -15,7 +15,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 // Store persists one project's workflow state in SQLite.
 type Store struct {
@@ -259,6 +259,7 @@ func migrations() []migration {
 	return []migration{
 		{version: 1, statements: schemaV1()},
 		{version: 2, statements: schemaV2()},
+		{version: 3, statements: schemaV3()},
 	}
 }
 
@@ -289,6 +290,24 @@ func schemaV2() []string {
 		"ALTER TABLE tasks ADD COLUMN started_at TEXT NOT NULL DEFAULT ''",
 		"ALTER TABLE tasks ADD COLUMN completed_at TEXT NOT NULL DEFAULT ''",
 		"ALTER TABLE tasks ADD COLUMN disposition TEXT NOT NULL DEFAULT ''",
+	}
+}
+
+func schemaV3() []string {
+	return []string{
+		`CREATE TABLE IF NOT EXISTS roadmap_entries (
+			id TEXT PRIMARY KEY,
+			project_id TEXT NOT NULL,
+			initiative_id TEXT,
+			phase TEXT NOT NULL,
+			description TEXT NOT NULL,
+			status TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			UNIQUE (project_id, description)
+		)`,
+		`CREATE INDEX IF NOT EXISTS roadmap_project_idx
+			ON roadmap_entries (project_id, phase, status)`,
 	}
 }
 

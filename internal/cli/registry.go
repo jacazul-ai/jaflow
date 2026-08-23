@@ -20,6 +20,7 @@ func RegisterCommands(parser *flags.Parser) {
 	registerCommand(parser, "activate", &ActivateCommand{})
 	registerCommand(parser, "tree", &TreeCommand{})
 	registerCommand(parser, "commit", &CommitCommand{})
+	registerCommand(parser, "roadmap", &RoadmapCommand{})
 }
 
 func registerCommand(parser *flags.Parser, name string, command flags.Commander) {

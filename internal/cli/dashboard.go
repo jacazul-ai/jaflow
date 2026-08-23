@@ -179,6 +179,9 @@ func renderInitiatives(projectID string, summaries []task.InitiativeSummary) str
 	}
 	output.WriteString("INITIATIVES:\n")
 	for _, summary := range summaries {
+		if summary.Initiative.Status == task.InitiativeCompleted {
+			continue
+		}
 		fmt.Fprintf(&output, "- [%s] %s pending:%d active:%d completed:%d blocked:%d\n",
 			strings.ToUpper(string(summary.Initiative.Status)),
 			summary.Initiative.Name,
@@ -187,6 +190,17 @@ func renderInitiatives(projectID string, summaries []task.InitiativeSummary) str
 			summary.Completed,
 			summary.Blocked,
 		)
+	}
+	closedHeader := false
+	for _, summary := range summaries {
+		if summary.Initiative.Status != task.InitiativeCompleted {
+			continue
+		}
+		if !closedHeader {
+			output.WriteString("RECENTLY CLOSED:\n")
+			closedHeader = true
+		}
+		fmt.Fprintf(&output, "- %s completed:%d\n", summary.Initiative.Name, summary.Completed)
 	}
 	return output.String()
 }

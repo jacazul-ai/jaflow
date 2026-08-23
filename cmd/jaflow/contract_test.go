@@ -242,3 +242,22 @@ func TestStatusUsesPromptAsAdCacheSignal(t *testing.T) {
 		t.Fatalf("cached status = %q, err %v; want Prompt as Ad signal", output, err)
 	}
 }
+
+func TestRoadmapInitializationHasDuplicateGuard(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+	if output, err := runJaflow(t, binary, harness, "plan", "roadmap", "First"); err != nil {
+		t.Fatalf("create roadmap initiative: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "roadmap", "init"); err != nil {
+		t.Fatalf("initialize roadmap: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "roadmap", "init")
+	if err == nil || !strings.Contains(output, "already initialized") || !strings.Contains(output, "ACTION:") {
+		t.Fatalf("duplicate roadmap init = %q, err %v; want actionable guard", output, err)
+	}
+	output, err = runJaflow(t, binary, harness, "roadmap", "show")
+	if err != nil || !strings.Contains(output, "ROADMAP") || !strings.Contains(output, "roadmap") {
+		t.Fatalf("roadmap show = %q, err %v; want ledger entry", output, err)
+	}
+}

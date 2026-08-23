@@ -1,0 +1,125 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/jacazul-ai/jaflow/internal/config"
+	"github.com/jacazul-ai/jaflow/internal/task"
+)
+
+// RoadmapCommand groups roadmap ledger commands.
+type RoadmapCommand struct {
+	Show RoadmapShowCommand `command:"show" description:"Show the roadmap ledger"`
+	Init RoadmapInitCommand `command:"init" description:"Initialize the roadmap ledger"`
+	Add  RoadmapAddCommand  `command:"add" description:"Add a roadmap phase"`
+}
+
+// Execute requires a roadmap subcommand.
+func (cmd *RoadmapCommand) Execute(args []string) error {
+	return fmt.Errorf("roadmap requires a subcommand\nACTION: Run 'jaflow help roadmap'.")
+}
+
+// RoadmapShowCommand displays roadmap phases.
+type RoadmapShowCommand struct {
+	appOpts *config.AppOptions
+}
+
+// SetAppOptions supplies project options to the command.
+func (cmd *RoadmapShowCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+}
+
+// Execute shows the current ledger.
+func (cmd *RoadmapShowCommand) Execute(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("roadmap show accepts no arguments")
+	}
+	store, err := openStore(cmd.appOpts)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	entries, err := store.ListRoadmap(context.Background(), cmd.appOpts.ProjectID)
+	if err != nil {
+		return err
+	}
+	if len(entries) == 0 {
+		fmt.Println("No roadmap found.")
+		return nil
+	}
+	fmt.Printf("ROADMAP: %s\n", cmd.appOpts.ProjectID)
+	for _, entry := range entries {
+		fmt.Printf("[%s] %s\n", entry.Phase, entry.Description)
+	}
+	return nil
+}
+
+// RoadmapInitCommand creates the roadmap ledger from current initiatives.
+type RoadmapInitCommand struct {
+	appOpts *config.AppOptions
+}
+
+// SetAppOptions supplies project options to the command.
+func (cmd *RoadmapInitCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+}
+
+// Execute initializes the roadmap once.
+func (cmd *RoadmapInitCommand) Execute(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("roadmap init accepts no arguments")
+	}
+	store, err := openStore(cmd.appOpts)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if err := store.InitializeRoadmap(context.Background(), cmd.appOpts.ProjectID); err != nil {
+		return err
+	}
+	fmt.Printf("Roadmap initialized: %s\n", cmd.appOpts.ProjectID)
+	return nil
+}
+
+// RoadmapAddCommand adds a manually classified phase.
+type RoadmapAddCommand struct {
+	Phase        string `long:"phase" description:"Roadmap phase"`
+	Description  string `long:"description" description:"Phase description"`
+	InitiativeID string `long:"initiative-id" description:"Optional initiative UUID"`
+	appOpts      *config.AppOptions
+}
+
+// SetAppOptions supplies project options to the command.
+func (cmd *RoadmapAddCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+}
+
+// Execute adds a phase to the ledger.
+func (cmd *RoadmapAddCommand) Execute(args []string) error {
+	if len(args) != 0 || cmd.Phase == "" || cmd.Description == "" {
+		return fmt.Errorf("roadmap add requires --phase and --description\nACTION: Run 'jaflow help roadmap'.")
+	}
+	store, err := openStore(cmd.appOpts)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if err := store.AddRoadmapEntry(context.Background(), task.RoadmapEntry{
+		ID:           newRoadmapID(),
+		ProjectID:    cmd.appOpts.ProjectID,
+		InitiativeID: cmd.InitiativeID,
+		Phase:        cmd.Phase,
+		Description:  cmd.Description,
+		Status:       task.Pending,
+	}); err != nil {
+		return err
+	}
+	fmt.Printf("Roadmap phase added: [%s] %s\n", cmd.Phase, cmd.Description)
+	return nil
+}
+
+func newRoadmapID() string {
+	return fmt.Sprintf("roadmap-%d", time.Now().UTC().UnixNano())
+}

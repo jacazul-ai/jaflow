@@ -271,6 +271,26 @@ var helpEntries = []helpEntry{
 		examples: []string{"jaflow commit", "jaflow commit --fix"},
 		next:     "Review the draft, stage only task-relevant files, and use git commit -F with approval.",
 	},
+	{
+		name:    "roadmap",
+		summary: "Manage the project roadmap ledger",
+		usage:   "jaflow roadmap <show|init|add>",
+		role:    "Use this to keep strategic initiative phases separate from operational task chains.",
+		preconditions: []string{
+			"roadmap init is allowed only when no roadmap ledger exists for the project.",
+			"roadmap add requires --phase and --description.",
+		},
+		effects: []string{
+			"roadmap init projects current initiatives into strategic phases.",
+			"Duplicate initialization fails with an ACTION instead of creating a second ledger.",
+		},
+		examples: []string{
+			"jaflow roadmap show",
+			"jaflow roadmap init",
+			"jaflow roadmap add --phase next --description 'Define release plan'",
+		},
+		next: "Use 'jaflow roadmap show' before changing an existing phase.",
+	},
 }
 
 func findHelpEntry(name string) (helpEntry, bool) {

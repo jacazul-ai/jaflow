@@ -67,6 +67,16 @@ type FocusState struct {
 	PlansOfInterest []string
 }
 
+// RoadmapEntry is one strategic ledger phase for a project initiative.
+type RoadmapEntry struct {
+	ID           string
+	ProjectID    string
+	InitiativeID string
+	Phase        string
+	Description  string
+	Status       Status
+}
+
 // InitiativeSummary contains dashboard counts for one initiative.
 type InitiativeSummary struct {
 	Initiative Initiative
