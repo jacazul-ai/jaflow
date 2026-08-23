@@ -209,6 +209,9 @@ func (s *Store) CompleteTask(ctx context.Context, taskID string) error {
 	if err != nil {
 		return fmt.Errorf("complete task: %w", err)
 	}
+	if err := s.refreshInitiativeStatus(ctx, current.InitiativeID); err != nil {
+		return err
+	}
 	return nil
 }
 

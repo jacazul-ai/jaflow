@@ -67,6 +67,15 @@ type FocusState struct {
 	PlansOfInterest []string
 }
 
+// InitiativeSummary contains dashboard counts for one initiative.
+type InitiativeSummary struct {
+	Initiative Initiative
+	Pending    int
+	Active     int
+	Completed  int
+	Blocked    int
+}
+
 // SessionInfo describes one persisted project session.
 type SessionInfo struct {
 	ProjectID     string

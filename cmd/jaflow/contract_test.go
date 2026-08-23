@@ -198,3 +198,47 @@ func TestSessionListShowsCurrentAnchor(t *testing.T) {
 		t.Fatalf("session list = %q, err %v; want current anchor", output, err)
 	}
 }
+
+func TestDashboardShowsBlockedWorkAndBacklogLifecycle(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "dashboard", "First", "Second")
+	if err != nil {
+		t.Fatalf("create dashboard plan: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "ponder")
+	if err != nil || !strings.Contains(output, "dashboard") || !strings.Contains(output, "blocked:1") {
+		t.Fatalf("ponder = %q, err %v; want blocked dashboard count", output, err)
+	}
+	output, err = runJaflow(t, binary, harness, "tree", "dashboard")
+	if err != nil || !strings.Contains(output, "READY") || !strings.Contains(output, "BLOCKED") {
+		t.Fatalf("tree = %q, err %v; want dependency markers", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "backlog", "dashboard"); err != nil {
+		t.Fatalf("backlog dashboard: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "plans")
+	if err != nil || strings.Contains(output, "dashboard") {
+		t.Fatalf("plans after backlog = %q, err %v; want hidden initiative", output, err)
+	}
+	output, err = runJaflow(t, binary, harness, "plans", "--with-backlog")
+	if err != nil || !strings.Contains(output, "dashboard") {
+		t.Fatalf("plans with backlog = %q, err %v; want initiative", output, err)
+	}
+}
+
+func TestStatusUsesPromptAsAdCacheSignal(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+	if output, err := runJaflow(t, binary, harness, "plan", "cache", "First"); err != nil {
+		t.Fatalf("create cache plan: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status"); err != nil {
+		t.Fatalf("prime status cache: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "status")
+	if err != nil || !strings.Contains(output, "[cached]") {
+		t.Fatalf("cached status = %q, err %v; want Prompt as Ad signal", output, err)
+	}
+}
