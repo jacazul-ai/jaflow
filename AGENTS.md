@@ -153,34 +153,87 @@ experience.
 
 ## CLI Reference Pattern
 
-Use `~/source/candango/nvimim` as the reference for CLI composition and user
-experience. Its implementation is a style reference, not a dependency or a
-behavioral source for workflow semantics.
+Use `~/source/candango/nvimim` and
+`~/source/idzoid/cryptozoid/master` as references for Go CLI composition and
+user experience. Their implementation is a style reference, not a dependency
+or a behavioral source for workflow semantics. The parent
+`~/source/jacazul-ai/jacazul-ai-cli/master` remains the behavioral source for
+`tw-flow` compatibility; do not copy its Python `FlowManager` shape into Go.
+
+### House CLI Style
+
+Adopt the following composition style for `jaflow`:
 
 - Keep `cmd/jaflow/main.go` thin: construct global options, configure the
-  parser, register commands, handle help/version, and map final errors to
-  stderr and exit status.
-- Put command behavior in `internal/cli`, with one concrete command type per
-  command and an `Execute(args []string) error` method.
-- Use a small options handoff boundary (`SetAppOptions` or an equivalent
-  consumer-owned contract) instead of global mutable state.
-- Register commands with a short summary and detailed help text. Positional
-  argument validation belongs to the command that owns those arguments.
-- Return errors from command code; do not call `os.Exit` deep inside command
-  packages. The process boundary owns termination.
-- Split workflow behavior by command. A command such as `focus`, `status`,
-  `done`, `session`, or `cache` should have its own command type and
-  `Execute(args []string) error` boundary, following the `nvimim` pattern.
-- Do not translate the Python `FlowManager` into a new Go monolith. Shared
-  behavior belongs in small, focused workflow, persistence, or cache
-  components with clear responsibilities.
-- Keep command complexity local and observable: each command gets focused
-  contract tests, and shared components get their own behavior tests.
-- Test command behavior directly using temporary directories, controlled stdin,
-  local HTTP test servers, and filesystem assertions. Do not make unit tests
-  depend on the user's home directory or live network services.
-- Preserve readable, user-facing output for successful state changes while
-  sending failures to stderr through the process boundary.
+  `go-flags` parser, register commands, handle help/version, and map final
+  errors to stderr and exit status.
+- Use an explicit command registry as the source of truth for command names,
+  summaries, detailed help, routing, and the visible command tree. Parser tags
+  support the registry; they must not define the domain model.
+- Put command behavior in `internal/cli`. Each logical command owns a small
+  concrete command type with an `Execute(args []string) error` method. Small
+  related commands may share a file, but they must not share an undifferentiated
+  command object or a monolithic manager.
+- Model command groups explicitly when the user experience is hierarchical,
+  following the `cryptozoid ec generate`, `ec encrypt`, and `ec decrypt`
+  pattern. Use nested command structs and `command` metadata for the tree;
+  keep group-level behavior separate from leaf-command behavior.
+- Declare command-local flags on the command that consumes them. Declare
+  positional argument rules and validation in that command, not in the root
+  parser or a shared options package.
+- Resolve process-wide and project-scoped options once at dispatch, then pass
+  them through a small consumer-owned handoff such as `SetAppOptions`. Never
+  use package globals or hidden mutable configuration.
+- Keep the process boundary responsible for `os.Exit`, help rendering, version
+  output, stderr formatting, and exit status. Command packages return errors
+  and never terminate the process themselves.
+- Use the shared output contract: successful state changes go to stdout;
+  failures go to stderr and explain the next valid action with an `ACTION:`
+  prompt; healthy no-op checks stay quiet unless the command is a report.
+- Keep CLI responsibilities narrow: parse and validate input, call focused
+  workflow/domain components, and render user-facing results. Persistence,
+  Taskwarrior compatibility, cache policy, session state, and future transport
+  belong behind separate packages with explicit boundaries.
+- Keep command complexity local and observable. A command such as `focus`,
+  `status`, `done`, `session`, or `cache` gets its own command boundary and
+  focused contract tests rather than expanding a central `FlowManager`.
+
+### CLI Documentation and Verification
+
+- Document the command tree, options, defaults, positional inputs, examples,
+  stdin behavior, output shape, and failure conditions in `README.md` and a
+  focused `docs/cli.md` when the command surface is large enough to need it.
+- Test command behavior at the narrowest reliable boundary: direct command
+  tests for validation and domain calls, plus subprocess contract tests for
+  routing, help, exit status, stdout/stderr, project isolation, and actionable
+  errors.
+- Use `t.TempDir()`, controlled environment variables, fake executables, local
+  HTTP test servers, and controlled stdin. Tests must not use the developer's
+  home directory, real Taskwarrior data, live network services, or production
+  tickets.
+- Before finalizing Go CLI changes, run `gofmt`, `goimports` when installed,
+  `go test ./...`, `go vet ./...`, and `go test -race ./...` for behavioral
+  changes. If `goimports` is unavailable, use `gofmt` and report the skipped
+  import-organization pass.
+
+## Error as Prompt and Prompt as Ad
+
+Import the workflow contract from `jacazul-ai-cli`:
+
+- Errors are operational signals, not dead ends. Emit them on `stderr` with
+  enough context to explain what failed and a concrete `ACTION:` describing
+  the next valid move.
+- The process boundary owns error formatting and exit status; command code
+  returns actionable errors without calling `os.Exit`.
+- Healthy verification should stay quiet unless the command is explicitly a
+  status/report operation or debug output was requested.
+- Emit normal output when state changes, such as creating or transitioning a
+  task. Do not narrate unchanged state as noise.
+- Use short, high-value context alerts for task attributes, tickets, focus, or
+  mode restrictions. Alerts must help the agent act without dumping the whole
+  protocol or interrupting the workflow.
+- Contract tests must assert both the error condition and its guidance so
+  actionable errors do not regress into generic failures.
 
 ## Engineering Rules
 
@@ -190,6 +243,9 @@ behavioral source for workflow semantics.
 - Prefer the standard library. Avoid framework or Java-style layering.
 - Preserve line-of-sight readability: handle errors early and keep the happy
   path left-aligned.
+- Cyclomatic complexity is prohibited as a design strategy: keep functions
+  small and linear, split behavior by responsibility, and reject monolithic
+  dispatchers, managers, and deeply nested branches.
 - Wrap actionable underlying errors with `%w`; use `errors.Is` and
   `errors.As` for classification.
 - Keep client launchers (Pi, Claude, Copilot, Gemini, and OpenCode), shell
