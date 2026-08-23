@@ -16,7 +16,7 @@ cmd/jaflow
 internal/cli
     ↓
 Coordinator
-    └── ProjectStore
+    └── sqlok ProjectStore
         └── SQLite database (one file per PROJECT_ID)
             ├── initiatives and tasks
             ├── dependencies and annotations
@@ -61,11 +61,13 @@ storage files directly.
 `TaskBackend` is the behavior contract for task management. It represents
 workflow operations rather than raw Taskwarrior binary commands.
 
-The current implementation is a local SQLite-backed store:
+The current implementation target is the official `sqlok`-backed local
+store:
 
 - one physical database file per canonical `PROJECT_ID`;
 - database location resolved from the project-scoped runtime root;
-- explicit schema migrations and transaction boundaries;
+- schema migrations, SQL generation, and transaction boundaries delegated to
+  `sqlok`;
 - no dependency on the Taskwarrior binary for normal operation;
 - independent from process-global state through injected paths and
   configuration.
@@ -76,41 +78,44 @@ implementation.
 
 ### SQLite Persistence
 
-The project store owns the local database boundary. It is responsible for:
+The `sqlok`-backed project store owns the local database boundary. `sqlok`
+is responsible for:
 
-- resolving one database path from the canonical `PROJECT_ID`;
-- creating and migrating the schema;
-- transactional reads and writes;
-- stable UUIDs and initiative/task relationships;
-- dependency, annotation, ticket, focus, session, and cache records;
-- locking, revision metadata, and atomic durability where required.
+- resolving or receiving one database path for the canonical `PROJECT_ID`;
+- SQLite dialect behavior and parameterized SQL generation;
+- schema migrations, constraints, and indexes;
+- connection, transaction, locking, and atomic durability boundaries.
 
-The store must not know CLI argument parsing, prompt rendering, agent
-personas, or external GitHub credentials.
+`jaflow` is responsible for workflow/domain behavior and asks `sqlok` to
+persist it. Neither layer knows CLI prompt rendering, agent personas, or
+external GitHub credentials.
 
 Focus, sessions, and cache remain separate behavioral concerns, but their
 records are scoped inside the owning project's database. Do not create a
 generic grab-bag interface just to hide SQLite.
 
-### SQLite Driver Decision
+### SQL Backend Decision
 
-The local parity implementation uses [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite):
+`sqlok` is the official SQL backend for `jaflow`. The current `sqlok` public
+surface is still under development, so the parity work must collect and close
+its required backend capabilities instead of duplicating SQL generation inside
+`jaflow`.
 
-- pure Go and CGO-free;
-- compatible with `database/sql`;
-- suitable for local per-project files and cross-platform agent binaries;
-- no remote URL, primary database, or authentication token required.
+The required public `sqlok` surface is:
 
-[`go-libsql`](https://github.com/tursodatabase/go-libsql) remains a future
-adapter option. It provides libSQL bindings, local files, remote access, and
-embedded replicas, but it requires CGO and currently has a narrower set of
-precompiled platform targets. Introducing it into local parity would couple
-basic workflow execution to native toolchains and replication configuration.
+- SQLite dialect and parameterized SQL generation;
+- public schema definitions for tables, indexes, foreign keys, and constraints;
+- migration creation and application with version tracking;
+- connection and transaction lifecycle boundaries;
+- SQLite in-memory and temporary-file test support;
+- low-complexity, wrapped errors suitable for the `Error as Prompt` boundary.
 
-If the team later needs remote synchronization, add a libSQL/Turso-backed
-`ProjectStore` adapter behind the existing storage boundary. That future path
-must own its primary URL, credentials, sync policy, and failure semantics; the
-local database contract must remain usable without any of them.
+Driver choices such as `modernc.org/sqlite`, `go-libsql`, or a future Turso
+adapter belong inside `sqlok`. `jaflow` must consume the public `sqlok` API and
+must not import its `internal/` packages or embed parallel SQL strings.
+
+Remote replication, primary URLs, credentials, and sync failure semantics are
+future backend concerns. Local feature parity must remain usable without them.
 
 ## Storage Contracts
 
@@ -118,7 +123,7 @@ The project has two real storage directions:
 
 ```text
 ProjectStore
-├── SQLiteStore              # current local implementation
+├── sqlokStore               # official local implementation
 ├── TaskwarriorAdapter       # compatibility/import-export boundary
 └── ServerTaskBackend        # future shared implementation
 ```

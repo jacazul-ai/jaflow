@@ -126,14 +126,14 @@ cmd/jaflow/main.go       parser, global options, command registry, process exit
 internal/cli/             one command type and Execute method per command
 internal/workflow/        small shared workflow behavior
 internal/storage/         project database and persistence boundaries
-internal/storage/sqlite/  schema, migrations, transactions, queries
-internal/cache/           cache policy and invalidation behavior
+internal/storage/sqlok/    sqlok-backed schema, migrations, and queries
+internal/cache/            cache policy and invalidation behavior
 internal/testharness/     isolated project databases and fake externals
 ```
 
 The CLI must not infer initiative lifecycle from a Taskwarrior project string.
-Commands call the local store through focused behavior boundaries and render
-results; they do not manipulate SQLite tables directly.
+Commands call the sqlok-backed local store through focused behavior boundaries
+and render results; they do not manipulate SQL or SQLite tables directly.
 
 Do not translate the Python `FlowManager` into a Go monolith. Feature parity is
 measured per command and per contract, not by matching the old class layout.
