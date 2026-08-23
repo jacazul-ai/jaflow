@@ -7,6 +7,11 @@ func RegisterCommands(parser *flags.Parser) {
 	registerCommand(parser, "help", NewHelpCommand(parser))
 	registerCommand(parser, "plan", &PlanCommand{})
 	registerCommand(parser, "status", &StatusCommand{})
+	registerCommand(parser, "execute", &ExecuteCommand{})
+	registerCommand(parser, "outcome", &OutcomeCommand{})
+	registerCommand(parser, "done", &DoneCommand{})
+	registerCommand(parser, "reopen", &ReopenCommand{})
+	registerCommand(parser, "discard", &DiscardCommand{})
 }
 
 func registerCommand(parser *flags.Parser, name string, command flags.Commander) {

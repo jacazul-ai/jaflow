@@ -105,6 +105,74 @@ var helpEntries = []helpEntry{
 		examples: []string{"jaflow status", "jaflow status parity"},
 		next:     "Choose the first ready task in the initiative chain; do not skip a blocking dependency.",
 	},
+	{
+		name:    "execute",
+		summary: "Start a ready task",
+		usage:   "jaflow execute <task-uuid>",
+		role:    "Use this to begin work on the next task whose dependencies are complete.",
+		preconditions: []string{
+			"The task must exist in the selected project database.",
+			"Every dependency must be completed; blocked tasks fail with an ACTION.",
+		},
+		effects: []string{
+			"Moves the task from pending to active and records its start time.",
+			"Does not silently switch to another initiative.",
+		},
+		examples: []string{"jaflow execute 57c3fc80"},
+		next:     "Do the work, then run 'jaflow outcome <uuid> <message>' before done.",
+	},
+	{
+		name:    "outcome",
+		summary: "Record the result required for completion",
+		usage:   "jaflow outcome <task-uuid> <message...>",
+		role:    "Use this to persist the result and handoff context before closing a task.",
+		effects: []string{
+			"Stores the outcome on the task and adds an OUTCOME annotation.",
+			"Does not complete the task by itself.",
+		},
+		examples: []string{"jaflow outcome 57c3fc80 'Schema contract implemented'"},
+		next:     "Run 'jaflow done <uuid>' after the outcome is recorded.",
+	},
+	{
+		name:    "done",
+		summary: "Complete a task and expose ready work",
+		usage:   "jaflow done <task-uuid>",
+		role:    "Use this only after the task outcome is recorded.",
+		preconditions: []string{
+			"The task must not already be completed.",
+			"An OUTCOME record is mandatory.",
+		},
+		effects: []string{
+			"Marks the task completed and reports tasks newly unblocked in the same initiative.",
+			"Preserves the dependency chain for the next focus switch.",
+		},
+		examples: []string{"jaflow done 57c3fc80"},
+		next:     "Switch focus to the reported ready task, then run 'jaflow execute <uuid>'.",
+	},
+	{
+		name:    "reopen",
+		summary: "Return a completed task to pending",
+		usage:   "jaflow reopen <task-uuid>",
+		role:    "Use this when more work is required on a completed task.",
+		effects: []string{
+			"Moves the task back to pending and clears completion disposition.",
+			"Keeps the recorded outcome as historical context.",
+		},
+		examples: []string{"jaflow reopen 57c3fc80"},
+		next:     "Run 'jaflow execute <uuid>' after its dependencies are ready.",
+	},
+	{
+		name:    "discard",
+		summary: "Discard a task with an audit outcome",
+		usage:   "jaflow discard <task-uuid>",
+		role:    "Use this instead of manually deleting or marking a task discarded.",
+		effects: []string{
+			"Completes the task with a discarded disposition.",
+			"Adds an auditable OUTCOME record explaining the discard.",
+		},
+		examples: []string{"jaflow discard 57c3fc80"},
+		next:     "Run 'jaflow status' to inspect the remaining initiative chain.",
+	},
 }
 
 func findHelpEntry(name string) (helpEntry, bool) {
