@@ -92,6 +92,26 @@ Focus, sessions, and cache remain separate behavioral concerns, but their
 records are scoped inside the owning project's database. Do not create a
 generic grab-bag interface just to hide SQLite.
 
+### SQLite Driver Decision
+
+The local parity implementation uses [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite):
+
+- pure Go and CGO-free;
+- compatible with `database/sql`;
+- suitable for local per-project files and cross-platform agent binaries;
+- no remote URL, primary database, or authentication token required.
+
+[`go-libsql`](https://github.com/tursodatabase/go-libsql) remains a future
+adapter option. It provides libSQL bindings, local files, remote access, and
+embedded replicas, but it requires CGO and currently has a narrower set of
+precompiled platform targets. Introducing it into local parity would couple
+basic workflow execution to native toolchains and replication configuration.
+
+If the team later needs remote synchronization, add a libSQL/Turso-backed
+`ProjectStore` adapter behind the existing storage boundary. That future path
+must own its primary URL, credentials, sync policy, and failure semantics; the
+local database contract must remain usable without any of them.
+
 ## Storage Contracts
 
 The project has two real storage directions:
