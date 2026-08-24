@@ -72,6 +72,29 @@ The initial inventory identified 104 candidate core/runtime tests:
 - session list: 9
 - project identity: 4
 
+## Residual Context Contract
+
+The remaining context slice follows the reference `tw-flow` behavior without
+reintroducing Taskwarrior as the native source of truth:
+
+- Annotations persist an uppercase semantic kind, body, and creation timestamp.
+  Supported note aliases include `RESEARCH`, `DECISION`, `OUTCOME`, `HANDOFF`,
+  `BLOCKED`, `LESSON`, `QUESTION`, `HYPOTHESIS`, `AC`, `NOTE`, and `LINK`.
+- `notes` lists annotations with timestamps, and `note delete` removes one
+  annotation by its timestamp. Notes remain valid on completed tasks.
+- `context` and focused status output collect relevant annotations from the
+  dependency graph in dependency-first order. The focused task is excluded
+  from inherited context; direct task context remains available separately.
+- A direct task ticket takes precedence. If absent, ticket lookup recursively
+  walks dependencies and reports the first available inherited ticket.
+- `handoff` starts the target task when necessary and records a `HANDOFF`
+  annotation on that task. It must preserve the existing lifecycle safety
+  rules and actionable errors.
+
+This contract is intentionally expressed at the workflow/store boundary so
+future Taskwarrior import or broker adapters can project the same behavior
+without owning native context semantics.
+
 ## Test Quality Findings
 
 These reference tests must not be copied blindly:
