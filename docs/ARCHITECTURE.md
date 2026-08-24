@@ -64,7 +64,9 @@ workflow operations rather than raw Taskwarrior binary commands.
 The current implementation target is the official `sqlok`-backed local
 store:
 
-- one physical database file per canonical `PROJECT_ID`;
+- one project-direct directory at
+  `$JACAZUL_HOME/jaflow/<PROJECT_ID>/`;
+- one physical `jaflow.sqlite3` file inside that directory;
 - database location resolved from the project-scoped runtime root;
 - schema migrations, SQL generation, and transaction boundaries delegated to
   `sqlok`;
@@ -78,8 +80,11 @@ implementation.
 
 ### SQLite Persistence
 
-The `sqlok`-backed project store owns the local database boundary. `sqlok`
-is responsible for:
+The project-direct directory is the complete local workflow container. Its
+SQLite file stores initiatives, tasks, dependencies, annotations, focus,
+sessions, cache, and roadmap state; session state is not scattered into
+separate files. The `sqlok`-backed project store owns the local database
+boundary. `sqlok` is responsible for:
 
 - resolving or receiving one database path for the canonical `PROJECT_ID`;
 - SQLite dialect behavior and parameterized SQL generation;

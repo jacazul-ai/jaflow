@@ -102,9 +102,17 @@ the agent needs to recover.
 ## Local storage direction
 
 `jaflow` owns the database driver and opens one SQLite database per project.
-`sqlok` owns SQL generation, schema definitions, migrations, and query/session
-abstractions over the application-provided `database/sql` connection. The
-workflow engine must not embed a second SQL builder or import `sqlok/internal`.
+All project workflow state lives under:
+
+```text
+$JACAZUL_HOME/jaflow/<PROJECT_ID>/jaflow.sqlite3
+```
+
+The database contains initiatives, tasks, dependencies, annotations, focus,
+sessions, cache, and roadmap state. `sqlok` owns SQL generation, schema
+definitions, migrations, and query/session abstractions over the
+application-provided `database/sql` connection. The workflow engine must not
+embed a second SQL builder or import `sqlok/internal`.
 
 ## Task lifecycle
 

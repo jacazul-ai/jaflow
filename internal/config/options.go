@@ -78,7 +78,6 @@ func Resolve(opts *AppOptions) error {
 		opts.DatabasePath = filepath.Join(
 			home,
 			"jaflow",
-			"databases",
 			opts.ProjectID,
 			"jaflow.sqlite3",
 		)
