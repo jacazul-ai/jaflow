@@ -176,6 +176,146 @@ The migration is complete only when a second apply is unchanged, no required
 fields are silently lost, state and behavior verification pass, and rollback
 has been exercised on an isolated target.
 
+## Operator runbook
+
+The following procedure is for an explicitly selected project and an isolated
+sandbox first. Replace every path with a deliberate target; do not run it
+against the operator's real `TASKDATA` or Jaflow database until the dry-run and
+acceptance review are complete.
+
+### 1. Capture the source snapshot
+
+Use the controlled legacy boundary to create a JSON snapshot and retain its
+checksum. Do not build the snapshot with shell interpolation of task fields.
+
+```bash
+mkdir -p /tmp/jaflow-migration
+TASK_EXPORT=/tmp/jaflow-migration/tasks.json
+taskp export > "$TASK_EXPORT"
+sha256sum "$TASK_EXPORT" > "$TASK_EXPORT.sha256"
+```
+
+When focus or handoff continuity is required, copy the selected legacy focus
+files into an isolated state directory and pass it explicitly:
+
+```bash
+LEGACY_STATE=/tmp/jaflow-migration/legacy-state
+mkdir -p "$LEGACY_STATE"
+# Copy only the selected focus*.json and session-note-*.md files here.
+```
+
+The source directory is input-only. The importer must never modify it.
+
+### 2. Dry-run and review
+
+Run the importer with an explicit project and database target. Omit `--apply`
+to keep the operation read-only; `--dry-run` may be supplied for clarity.
+
+```bash
+jaflow \
+  --project-id "$PROJECT_ID" \
+  --database-path "$TARGET_DB" \
+  migrate taskwarrior \
+  --source "$TASK_EXPORT" \
+  --legacy-data-dir "$LEGACY_STATE" \
+  --dry-run
+```
+
+Review the report for:
+
+- task, initiative, dependency, annotation, focus, and session counts;
+- unresolved or ambiguous UUID/numeric references;
+- unknown statuses, modes, annotation kinds, and invalid dates;
+- retained-data warnings such as unsupported tags;
+- the exact target project and database path.
+
+Do not apply while required data has a warning that has not been accepted or
+mapped. A dry-run must not create the target database.
+
+### 3. Apply with a checkpoint
+
+After reviewing the report, apply the same snapshot to the same explicit
+project and target. The command creates a timestamped backup of an existing
+SQLite database and available `-wal`/`-shm` sidecars before applying.
+
+```bash
+jaflow \
+  --project-id "$PROJECT_ID" \
+  --database-path "$TARGET_DB" \
+  migrate taskwarrior \
+  --source "$TASK_EXPORT" \
+  --legacy-data-dir "$LEGACY_STATE" \
+  --apply
+```
+
+Record the printed backup path, migration counts, source checksum, target
+path, and command version together in the change record. Keep the source
+snapshot and backup through the rollback window.
+
+### 4. Verify the native result
+
+Run the state and behavior checks in a new process using the same project and
+session identity:
+
+```bash
+jaflow --project-id "$PROJECT_ID" --database-path "$TARGET_DB" status --force
+jaflow --project-id "$PROJECT_ID" --database-path "$TARGET_DB" next <initiative>
+jaflow --project-id "$PROJECT_ID" --database-path "$TARGET_DB" focus
+jaflow --project-id "$PROJECT_ID" --database-path "$TARGET_DB" session list
+jaflow --project-id "$PROJECT_ID" --database-path "$TARGET_DB" session resume
+```
+
+Confirm that:
+
+- every required source UUID appears exactly once;
+- initiative and dependency counts match the normalized source snapshot;
+- annotations and direct/inherited tickets are available;
+- active, completed, waiting, and blocked states behave correctly;
+- focus and session notes point to the migrated native UUIDs;
+- a second `--apply` produces no duplicate tasks, edges, annotations, or
+  session records;
+- a separate project database cannot observe the migrated records;
+- the first native report is fresh and does not reuse legacy cache output.
+
+For differential verification, run the same isolated scenario through the
+legacy adapter and the native binary. Compare normalized state and behavior,
+not volatile UUID formatting, timestamps, paths, or known intentional fixes.
+
+### 5. Rollback
+
+Rollback is an operator-controlled file restoration, not a hidden importer
+operation. Stop all Jaflow writers first and preserve the failed target for
+forensics. Then restore the backup printed by the apply command, including
+sidecars when they exist:
+
+```bash
+mv "$TARGET_DB" "$TARGET_DB.failed-$(date -u +%Y%m%dT%H%M%SZ)"
+mv "$BACKUP_DB" "$TARGET_DB"
+# Restore "$BACKUP_DB-wal" and "$BACKUP_DB-shm" to the matching target names
+# when the backup command reported those sidecars.
+```
+
+Reopen the restored target only after the file moves finish, rerun the native
+status/session checks, and compare against the pre-apply checksum or snapshot.
+Do not delete the failed target until acceptance or incident review is
+complete.
+
+### Current v1 limitations
+
+The current importer is the first vertical slice, not the final cutover gate:
+
+- source fingerprints and a persistent import ledger are not yet exposed;
+- changed-snapshot conflict policy and a `--force` overwrite policy are not
+  yet exposed;
+- Taskwarrior tags are reported as retained-data warnings but are not yet
+  persisted natively;
+- roadmap phase import is documented but not yet implemented by the snapshot
+  mapper;
+- rollback is documented as an operator procedure rather than a CLI command.
+
+These limitations must remain visible in migration reports and must be closed
+before production cutover.
+
 ## Scope boundary
 
 This initiative covers local import and cutover preparation. It does not
