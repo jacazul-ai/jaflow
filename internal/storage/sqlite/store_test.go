@@ -183,10 +183,10 @@ func TestGooseAdoptsLegacyV1Schema(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read adopted Goose version: %v", err)
 	}
-	if version != 6 {
-		t.Fatalf("adopted Goose version = %d, want 6", version)
+	if version != 7 {
+		t.Fatalf("adopted Goose version = %d, want 7", version)
 	}
-	for _, column := range []string{"started_at", "completed_at", "disposition"} {
+	for _, column := range []string{"started_at", "completed_at", "disposition", "priority", "urgency", "wait_until"} {
 		var count int
 		if err := adopted.QueryRow(
 			"SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name = ?", column,
@@ -205,6 +205,15 @@ func TestGooseAdoptsLegacyV1Schema(t *testing.T) {
 	}
 	if modeCode != int(task.ModeExecute) {
 		t.Fatalf("migrated legacy task mode = %d, want %d", modeCode, task.ModeExecute)
+	}
+	var priority string
+	if err := adopted.QueryRow(
+		"SELECT priority FROM tasks WHERE id = 'legacy-task'",
+	).Scan(&priority); err != nil {
+		t.Fatalf("read migrated legacy task priority: %v", err)
+	}
+	if priority != "M" {
+		t.Fatalf("migrated legacy task priority = %q, want M", priority)
 	}
 }
 
@@ -227,8 +236,8 @@ func TestOpenAppliesAllGooseMigrations(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read goose version: %v", err)
 	}
-	if version != 6 {
-		t.Fatalf("goose version = %d, want 6", version)
+	if version != 7 {
+		t.Fatalf("goose version = %d, want 7", version)
 	}
 	var sessionNotes int
 	if err := db.QueryRow(

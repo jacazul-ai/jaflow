@@ -158,6 +158,9 @@ type Task struct {
 	CompletedAt    string       `json:"completed_at,omitempty"`
 	Disposition    string       `json:"disposition,omitempty"`
 	DueAt          string       `json:"due_at,omitempty"`
+	Priority       string       `json:"priority,omitempty"`
+	Urgency        float64      `json:"urgency,omitempty"`
+	WaitUntil      string       `json:"wait_until,omitempty"`
 	Dependencies   []string     `json:"dependencies,omitempty"`
 	Annotations    []Annotation `json:"annotations,omitempty"`
 
@@ -225,11 +228,20 @@ type CreateTaskInput struct {
 	Description  string
 	Mode         TaskMode
 	DueAt        string
+	Priority     string
+	Urgency      float64
+	WaitUntil    string
 	Dependencies []string
 
 	// ProjectID and Plan are compatibility fields for the legacy adapter.
 	ProjectID string
 	Plan      string
+}
+
+// TaskMetadataUpdate contains optional task fields that may be amended.
+type TaskMetadataUpdate struct {
+	Description    *string
+	ExternalTicket *string
 }
 
 // CreateInput is the legacy task backend input shape.

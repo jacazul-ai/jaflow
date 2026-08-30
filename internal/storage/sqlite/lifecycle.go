@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jacazul-ai/jaflow/internal/task"
 )
@@ -26,7 +27,8 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (task.Task, error) {
 	err = s.db.QueryRowContext(ctx, `
 		SELECT t.id, t.initiative_id, i.name, t.description,
 		       t.task_mode_code, t.status, t.outcome, t.external_ticket,
-		       t.started_at, t.completed_at, t.disposition, t.due_at
+		       t.started_at, t.completed_at, t.disposition, t.due_at,
+		       t.priority, t.urgency, t.wait_until
 		FROM tasks t
 		JOIN initiatives i ON i.id = t.initiative_id
 		WHERE t.id = ?
@@ -43,6 +45,9 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (task.Task, error) {
 		&current.CompletedAt,
 		&current.Disposition,
 		&current.DueAt,
+		&current.Priority,
+		&current.Urgency,
+		&current.WaitUntil,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return task.Task{}, fmt.Errorf("task %q not found", taskID)
@@ -105,8 +110,12 @@ func (s *Store) ReadyTasks(ctx context.Context, projectID string, initiativeName
 	}
 
 	ready := make([]task.Task, 0, len(tasks))
+	today := time.Now().UTC().Format("2006-01-02")
 	for _, current := range tasks {
 		if current.Status != task.Pending || !dependenciesCompleted(current, byID) {
+			continue
+		}
+		if current.WaitUntil != "" && current.WaitUntil > today {
 			continue
 		}
 		ready = append(ready, current)

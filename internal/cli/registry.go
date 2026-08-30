@@ -5,13 +5,21 @@ import "github.com/jessevdk/go-flags"
 // RegisterCommands registers the CLI command tree from the help catalog.
 func RegisterCommands(parser *flags.Parser) {
 	registerCommand(parser, "help", NewHelpCommand(parser))
-	registerCommand(parser, "plan", &PlanCommand{})
-	registerCommand(parser, "status", &StatusCommand{})
+
+	plan := &PlanCommand{}
+	registerCommand(parser, "plan", plan)
+	registerCommand(parser, "initiative", plan)
+	registerCommand(parser, "ini", plan)
+
+	status := &StatusCommand{}
+	registerCommand(parser, "status", status)
 	registerCommand(parser, "active", &ActiveCommand{})
 	registerCommand(parser, "blocked", &BlockedCommand{})
 	registerCommand(parser, "overdue", &OverdueCommand{})
 	registerCommand(parser, "execute", &ExecuteCommand{})
+	registerCommand(parser, "next", &NextCommand{})
 	registerCommand(parser, "outcome", &OutcomeCommand{})
+	registerCommand(parser, "amend", &AmendCommand{})
 	registerCommand(parser, "note", &NoteCommand{})
 	registerCommand(parser, "notes", &NotesCommand{})
 	registerCommand(parser, "context", &ContextCommand{})
@@ -20,10 +28,20 @@ func RegisterCommands(parser *flags.Parser) {
 	registerCommand(parser, "done", &DoneCommand{})
 	registerCommand(parser, "reopen", &ReopenCommand{})
 	registerCommand(parser, "discard", &DiscardCommand{})
+	registerCommand(parser, "rename", &RenameCommand{})
+	registerCommand(parser, "urgent", &UrgentCommand{})
+	registerCommand(parser, "block", &BlockCommand{})
+	registerCommand(parser, "unblock", &UnblockCommand{})
+	registerCommand(parser, "wait", &WaitCommand{})
 	registerCommand(parser, "focus", &FocusCommand{})
 	registerCommand(parser, "session", &SessionCommand{})
 	registerCommand(parser, "ponder", &PonderCommand{})
-	registerCommand(parser, "plans", &PlansCommand{})
+
+	plans := &PlansCommand{}
+	registerCommand(parser, "plans", plans)
+	registerCommand(parser, "inis", plans)
+	registerCommand(parser, "initiatives", plans)
+
 	registerCommand(parser, "backlog", &BacklogCommand{})
 	registerCommand(parser, "activate", &ActivateCommand{})
 	registerCommand(parser, "tree", &TreeCommand{})

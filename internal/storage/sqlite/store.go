@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jacazul-ai/jaflow/internal/task"
@@ -109,12 +110,23 @@ func (s *Store) CreateTask(ctx context.Context, input task.CreateTaskInput) (tas
 		return task.Task{}, fmt.Errorf("invalid task mode %d", input.Mode)
 	}
 
+	priority := strings.ToUpper(strings.TrimSpace(input.Priority))
+	if priority == "" {
+		priority = "M"
+	}
+	if priority != "L" && priority != "M" && priority != "H" {
+		return task.Task{}, fmt.Errorf("invalid task priority %q", input.Priority)
+	}
+
 	created := task.Task{
 		ID:           newUUID(),
 		InitiativeID: input.InitiativeID,
 		Description:  input.Description,
 		Mode:         input.Mode,
 		DueAt:        input.DueAt,
+		Priority:     priority,
+		Urgency:      input.Urgency,
+		WaitUntil:    input.WaitUntil,
 		Status:       task.Pending,
 		Dependencies: append([]string(nil), input.Dependencies...),
 	}
@@ -129,10 +141,12 @@ func (s *Store) CreateTask(ctx context.Context, input task.CreateTaskInput) (tas
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO tasks
 			(id, initiative_id, description, mode, status, outcome,
-			 external_ticket, due_at, task_mode_code, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, '', '', ?, ?, ?, ?)
+			 external_ticket, priority, urgency, wait_until, due_at,
+			 task_mode_code, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?, ?)
 	`, created.ID, created.InitiativeID, created.Description, legacyModeName(created.Mode),
-		created.Status, created.DueAt, created.Mode, now, now); err != nil {
+		created.Status, created.Priority, created.Urgency, created.WaitUntil,
+		created.DueAt, created.Mode, now, now); err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
 	}
 	for _, dependencyID := range created.Dependencies {
@@ -159,7 +173,7 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 		SELECT t.id, t.initiative_id, i.name, t.description,
 		       t.status, t.outcome, t.external_ticket,
 		       t.started_at, t.completed_at, t.disposition, t.due_at,
-		       t.task_mode_code
+		       t.priority, t.urgency, t.wait_until, t.task_mode_code
 		FROM tasks t
 		JOIN initiatives i ON i.id = t.initiative_id
 		WHERE i.project_id = ?
@@ -194,6 +208,9 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 			&current.CompletedAt,
 			&current.Disposition,
 			&current.DueAt,
+			&current.Priority,
+			&current.Urgency,
+			&current.WaitUntil,
 			&modeCode,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)

@@ -66,7 +66,7 @@ func TestReferenceInitiativeAliasesRemainAvailable(t *testing.T) {
 		}
 	}
 
-	output, err = runJaflow(t, binary, harness, "initiatives", "--all")
+	output, err = runJaflow(t, binary, harness, "initiatives", "--all", "--force")
 	if err != nil {
 		t.Fatalf("list plans through initiatives: %v\n%s", err, output)
 	}
