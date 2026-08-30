@@ -127,25 +127,6 @@ func (s *Store) ListSessions(ctx context.Context, projectID string) ([]task.Sess
 	return sessions, nil
 }
 
-// SetTaskTicket persists an external ticket on a task.
-func (s *Store) SetTaskTicket(ctx context.Context, taskID string, ticket string) error {
-	current, err := s.GetTask(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	ticket = strings.TrimSpace(ticket)
-	if ticket == "" {
-		return errors.New("ticket is required")
-	}
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE tasks SET external_ticket = ?, updated_at = ? WHERE id = ?
-	`, ticket, timestamp(), current.ID)
-	if err != nil {
-		return fmt.Errorf("set task ticket: %w", err)
-	}
-	return nil
-}
-
 // AddAnnotation appends a canonical structured note to a task.
 func (s *Store) AddAnnotation(ctx context.Context, taskID string, kind string, body string) error {
 	current, err := s.GetTask(ctx, taskID)

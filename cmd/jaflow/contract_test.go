@@ -262,6 +262,49 @@ func TestRoadmapInitializationHasDuplicateGuard(t *testing.T) {
 	}
 }
 
+func TestExternalTicketInheritanceContracts(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "ticket", "Root", "Child")
+	if err != nil {
+		t.Fatalf("create ticket plan: %v\n%s", err, output)
+	}
+	matches := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindAllStringSubmatch(output, -1)
+	if len(matches) != 2 {
+		t.Fatalf("ticket plan output = %q, want two task UUIDs", output)
+	}
+	root, child := matches[0][1], matches[1][1]
+
+	if output, err := runJaflow(t, binary, harness, "ticket", root, "#PARENT-123"); err != nil {
+		t.Fatalf("set parent ticket: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "focus", "task", child); err != nil {
+		t.Fatalf("focus child task: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "status", "ticket")
+	for _, expected := range []string{
+		"[#PARENT-123] Root",
+		"[#PARENT-123] Child",
+		"Inherited ticket detected (#PARENT-123)",
+	} {
+		if err != nil || !strings.Contains(output, expected) {
+			t.Fatalf("inherited ticket status = %q, err %v; want %q", output, err, expected)
+		}
+	}
+	if output, err := runJaflow(t, binary, harness, "commit"); err != nil || !strings.Contains(output, "Refs: #PARENT-123") {
+		t.Fatalf("inherited ticket commit = %q, err %v; want parent reference", output, err)
+	}
+
+	if output, err := runJaflow(t, binary, harness, "ticket", child, "#CHILD-456"); err != nil {
+		t.Fatalf("set child ticket: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "status", "ticket", "--force")
+	if err != nil || !strings.Contains(output, "[#CHILD-456] Child") {
+		t.Fatalf("direct ticket status = %q, err %v; want child ticket", output, err)
+	}
+}
+
 func TestNoteAndContextContracts(t *testing.T) {
 	binary := buildJaflow(t)
 	harness := testharness.NewHarness(t, "project", "session")
@@ -366,6 +409,9 @@ func TestNotesAllowCompletedTasksAndRejectInvalidKinds(t *testing.T) {
 	}
 	if output, err := runJaflow(t, binary, harness, "notes", taskID); err != nil || !strings.Contains(output, "NOTE: Post-completion note") {
 		t.Fatalf("completed task notes = %q, err %v; want note", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "ticket", taskID, "#LATE-1"); err == nil || !strings.Contains(output, "already COMPLETED") {
+		t.Fatalf("completed task ticket = %q, err %v; want lifecycle protection", output, err)
 	}
 }
 

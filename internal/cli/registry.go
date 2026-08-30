@@ -12,6 +12,7 @@ func RegisterCommands(parser *flags.Parser) {
 	registerCommand(parser, "note", &NoteCommand{})
 	registerCommand(parser, "notes", &NotesCommand{})
 	registerCommand(parser, "context", &ContextCommand{})
+	registerCommand(parser, "ticket", &TicketCommand{})
 	registerCommand(parser, "done", &DoneCommand{})
 	registerCommand(parser, "reopen", &ReopenCommand{})
 	registerCommand(parser, "discard", &DiscardCommand{})

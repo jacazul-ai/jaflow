@@ -45,7 +45,7 @@ func (cmd *NoteCommand) Execute(args []string) error {
 		if err := store.DeleteAnnotation(context.Background(), current.ID, args[2]); err != nil {
 			return err
 		}
-		if err := clearContextCaches(store, cmd.appOpts, current); err != nil {
+		if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
 			return err
 		}
 		fmt.Printf("Deleted annotation [%s] from task %s\n", args[2], shortID(current.ID))
@@ -66,7 +66,7 @@ func (cmd *NoteCommand) Execute(args []string) error {
 	if err := store.AddAnnotation(context.Background(), current.ID, canonical, body); err != nil {
 		return err
 	}
-	if err := clearContextCaches(store, cmd.appOpts, current); err != nil {
+	if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
 		return err
 	}
 	fmt.Printf("Added %s note to task %s\n", canonical, shortID(current.ID))
@@ -168,7 +168,7 @@ func errorsForEmptyNote() error {
 	return fmt.Errorf("note message cannot be empty\nACTION: Provide a message after the semantic type.")
 }
 
-func clearContextCaches(store *sqlite.Store, opts *config.AppOptions, current task.Task) error {
+func clearTaskCaches(store *sqlite.Store, opts *config.AppOptions, current task.Task) error {
 	ctx := context.Background()
 	if err := store.ClearCacheKey(ctx, opts.ProjectID, opts.SessionID, "status"); err != nil {
 		return err

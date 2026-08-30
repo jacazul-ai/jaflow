@@ -97,6 +97,7 @@ The native context command surface is:
 jaflow note <uuid> <type> <message...>
 jaflow notes <uuid>
 jaflow context <uuid>
+jaflow ticket <uuid> <ticket>
 ```
 
 `note` normalizes semantic aliases to uppercase kinds, `notes` exposes

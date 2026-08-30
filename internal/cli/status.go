@@ -127,23 +127,45 @@ func renderStatus(
 	if pending > 0 {
 		output.WriteString("PENDING:\n")
 		for _, current := range tasks {
-			if current.Status == task.Pending || current.Status == task.Active {
-				fmt.Fprintf(&output, "- [%s] %s\n", shortID(current.ID), current.Description)
+			if current.Status != task.Pending && current.Status != task.Active {
+				continue
 			}
+			line, err := formatStatusTask(ctx, store, current)
+			if err != nil {
+				return "", err
+			}
+			output.WriteString(line)
 		}
 	}
 	if !pendingOnly && completed > 0 {
 		output.WriteString("COMPLETED:\n")
 		for _, current := range tasks {
-			if current.Status == task.Completed {
-				fmt.Fprintf(&output, "- [%s] %s\n", shortID(current.ID), current.Description)
+			if current.Status != task.Completed {
+				continue
 			}
+			line, err := formatStatusTask(ctx, store, current)
+			if err != nil {
+				return "", err
+			}
+			output.WriteString(line)
 		}
 	}
 	if output.Len() == 0 {
 		return "No tasks found.\n", nil
 	}
 	return output.String(), nil
+}
+
+func formatStatusTask(ctx context.Context, store *sqlite.Store, current task.Task) (string, error) {
+	ticket, _, err := store.FindExternalTicket(ctx, current.ID)
+	if err != nil {
+		return "", err
+	}
+	line := fmt.Sprintf("- [%s]", shortID(current.ID))
+	if ticket != "" {
+		line += " [" + ticket + "]"
+	}
+	return fmt.Sprintf("%s %s\n", line, current.Description), nil
 }
 
 func appendFocusedContext(
@@ -160,6 +182,17 @@ func appendFocusedContext(
 	for _, current := range tasks {
 		if current.ID != focused.ID {
 			continue
+		}
+		ticket, inheritedTicket, err := store.FindExternalTicket(ctx, focused.ID)
+		if err != nil {
+			return err
+		}
+		if ticket != "" {
+			kind := "External"
+			if inheritedTicket {
+				kind = "Inherited"
+			}
+			fmt.Fprintf(output, "🐊 ALERT: %s ticket detected (%s)\n", kind, ticket)
 		}
 		direct, err := store.ListAnnotations(ctx, focused.ID)
 		if err != nil {

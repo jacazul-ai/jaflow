@@ -174,6 +174,22 @@ var helpEntries = []helpEntry{
 		next:     "Use 'jaflow status <initiative>' for the focused workflow view with inherited context.",
 	},
 	{
+		name:    "ticket",
+		summary: "Link a task to an external ticket",
+		usage:   "jaflow ticket <task-uuid> <ticket>",
+		role:    "Use this to persist an external issue or ticket reference for commit and status awareness.",
+		preconditions: []string{
+			"The task must exist and must not be completed.",
+			"Provide a non-empty external ticket reference.",
+		},
+		effects: []string{
+			"Stores the direct ticket on the task and clears affected status and dashboard cache entries.",
+			"Dependent tasks resolve the first available ticket recursively when no direct ticket exists.",
+		},
+		examples: []string{"jaflow ticket 57c3fc80 '#JAF-123'"},
+		next:     "Run 'jaflow status <initiative>' to verify direct or inherited ticket awareness.",
+	},
+	{
 		name:    "done",
 		summary: "Complete a task and expose ready work",
 		usage:   "jaflow done <task-uuid>",

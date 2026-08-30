@@ -44,14 +44,18 @@ func (cmd *CommitCommand) Execute(args []string) error {
 
 	prefix := commitPrefix(task.Description, task.Mode)
 	description := cleanDescription(task.Description)
+	ticket, _, err := store.FindExternalTicket(context.Background(), task.ID)
+	if err != nil {
+		return err
+	}
 	fmt.Println("DRAFT CONVENTIONAL COMMIT")
 	fmt.Printf("%s: %s\n", prefix, description)
-	if task.ExternalTicket != "" {
+	if ticket != "" {
 		footer := "Refs"
 		if cmd.Fix {
 			footer = "Fixes"
 		}
-		fmt.Printf("\n%s: %s\n", footer, task.ExternalTicket)
+		fmt.Printf("\n%s: %s\n", footer, ticket)
 	}
 	fmt.Println("\nSAFETY: Draft only. Write a message file and obtain approval before git commit.")
 	return nil
