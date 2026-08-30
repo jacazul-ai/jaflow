@@ -55,6 +55,8 @@ The local engine should also be designed so it can connect to a centralized serv
   future team orchestration.
 - [Feature parity](docs/feature-parity.md): reference contracts, test audit,
   implementation backlog, and parity completion criteria.
+- [Migration](docs/migration.md): Taskwarrior mapping, safety, idempotency,
+  verification, cutover, and rollback.
 
 ## Consumer project
 
