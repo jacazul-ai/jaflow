@@ -190,6 +190,22 @@ var helpEntries = []helpEntry{
 		next:     "Run 'jaflow status <initiative>' to verify direct or inherited ticket awareness.",
 	},
 	{
+		name:    "handoff",
+		summary: "Start a task with handoff context",
+		usage:   "jaflow handoff <task-uuid> <message...>",
+		role:    "Use this to transfer execution context and begin the next ready task.",
+		preconditions: []string{
+			"The target task must exist and its dependencies must be completed.",
+			"The target task must not already be completed.",
+		},
+		effects: []string{
+			"Starts the target task when pending and records a HANDOFF annotation.",
+			"Preserves the dependency chain and clears affected derived views.",
+		},
+		examples: []string{"jaflow handoff 57c3fc80 'Start implementation with the validated design'"},
+		next:     "Run 'jaflow notes <uuid>' or 'jaflow context <uuid>' to verify the handoff.",
+	},
+	{
 		name:    "done",
 		summary: "Complete a task and expose ready work",
 		usage:   "jaflow done <task-uuid>",
@@ -232,7 +248,7 @@ var helpEntries = []helpEntry{
 	{
 		name:    "focus",
 		summary: "Switch the project and session focus",
-		usage:   "jaflow focus <show|plan|task|pop|clear> [value]",
+		usage:   "jaflow focus <show|plan|task|pop|clear|back|ind> [value]",
 		role:    "Use this to move the agent anchor without losing the initiative chain.",
 		preconditions: []string{
 			"Focus is scoped to the selected PROJECT_ID and session ID.",
@@ -249,19 +265,28 @@ var helpEntries = []helpEntry{
 			"jaflow focus task 57c3fc80",
 			"jaflow focus pop",
 		},
-		next: "Run 'jaflow execute <uuid>' only after the focused task is ready.",
+		next: "Run 'jaflow execute <uuid>' only after the focused task is ready; use 'jaflow focus ind' for an isolated session.",
 	},
 	{
 		name:    "session",
-		summary: "Inspect project session anchors",
-		usage:   "jaflow session <list|show>",
-		role:    "Use this to inspect which sessions own focus state in the current project database.",
-		effects: []string{
-			"session list shows persisted session IDs and their initiative/task anchors.",
-			"session show renders the current session focus.",
+		summary: "Manage native project sessions",
+		usage:   "jaflow session <list|show|resume|ack|dump|purge>",
+		role:    "Use this to inspect anchors, resume handoffs, and manage persisted session state.",
+		preconditions: []string{
+			"Session state is scoped to the selected project and session ID.",
+			"session purge requires --confirm before deleting orphan sessions.",
 		},
-		examples: []string{"jaflow session list", "jaflow session show"},
-		next:     "Use 'jaflow focus task <uuid>' to switch the current session anchor.",
+		effects: []string{
+			"session list shows persisted sessions, anchors, age, and activity status.",
+			"session resume and session ack expose the handoff lifecycle without replaying acknowledged notes.",
+			"session dump creates a resumable handoff; session purge removes non-current sessions older than eight hours.",
+		},
+		examples: []string{
+			"jaflow session list",
+			"jaflow session dump",
+			"jaflow session purge --confirm",
+		},
+		next: "Use 'jaflow focus task <uuid>' to switch the current session anchor.",
 	},
 	{
 		name:    "ponder",

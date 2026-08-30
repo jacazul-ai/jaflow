@@ -35,13 +35,10 @@ func (s *Store) LoadFocus(ctx context.Context, projectID string, sessionID strin
 		return task.FocusState{}, errors.New("project ID and session ID are required")
 	}
 
-	var state task.FocusState
-	var stackJSON string
-	err := s.db.QueryRowContext(ctx, `
-		SELECT focused_initiative_id, focused_task_id, task_stack_json
-		FROM sessions
-		WHERE project_id = ? AND session_id = ?
-	`, projectID, sessionID).Scan(&state.InitiativeID, &state.FocusedTaskID, &stackJSON)
+	initiativeID, focusedTaskID, stackJSON, err := s.loadFocusRow(ctx, projectID, sessionID)
+	if errors.Is(err, sql.ErrNoRows) && sessionID != "global" {
+		initiativeID, focusedTaskID, stackJSON, err = s.loadFocusRow(ctx, projectID, "global")
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return task.FocusState{
 			ProjectID: projectID,
@@ -52,15 +49,33 @@ func (s *Store) LoadFocus(ctx context.Context, projectID string, sessionID strin
 	if err != nil {
 		return task.FocusState{}, fmt.Errorf("load focus: %w", err)
 	}
+
+	state := task.FocusState{
+		ProjectID:     projectID,
+		SessionID:     sessionID,
+		InitiativeID:  initiativeID,
+		FocusedTaskID: focusedTaskID,
+		TaskStack:     []task.FocusEntry{},
+	}
 	if err := json.Unmarshal([]byte(stackJSON), &state.TaskStack); err != nil {
 		return task.FocusState{}, fmt.Errorf("decode focus stack: %w", err)
 	}
 	if state.TaskStack == nil {
 		state.TaskStack = []task.FocusEntry{}
 	}
-	state.ProjectID = projectID
-	state.SessionID = sessionID
 	return state, nil
+}
+
+func (s *Store) loadFocusRow(ctx context.Context, projectID string, sessionID string) (string, string, string, error) {
+	var initiativeID string
+	var focusedTaskID string
+	var stackJSON string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT focused_initiative_id, focused_task_id, task_stack_json
+		FROM sessions
+		WHERE project_id = ? AND session_id = ?
+	`, projectID, sessionID).Scan(&initiativeID, &focusedTaskID, &stackJSON)
+	return initiativeID, focusedTaskID, stackJSON, err
 }
 
 // SaveFocus persists the project session anchor and task stack.

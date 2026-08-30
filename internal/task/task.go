@@ -145,6 +145,15 @@ type SessionInfo struct {
 	UpdatedAt     string
 }
 
+// SessionNote stores a resumable handoff note for one project session.
+type SessionNote struct {
+	ProjectID      string
+	SessionID      string
+	Content        string
+	AcknowledgedAt string
+	UpdatedAt      string
+}
+
 // FocusEntry records one task in the focus stack.
 type FocusEntry struct {
 	TaskID       string `json:"task_id"`

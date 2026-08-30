@@ -11,16 +11,54 @@ import (
 
 // FocusCommand groups focus navigation commands.
 type FocusCommand struct {
-	Show  FocusShowCommand  `command:"show" description:"Show the current focus"`
-	Plan  FocusPlanCommand  `command:"plan" description:"Focus an initiative"`
-	Task  FocusTaskCommand  `command:"task" description:"Focus a task"`
-	Pop   FocusPopCommand   `command:"pop" description:"Pop the current task focus"`
-	Clear FocusClearCommand `command:"clear" description:"Clear the session focus"`
+	Show    FocusShowCommand        `command:"show" description:"Show the current focus"`
+	Plan    FocusPlanCommand        `command:"plan" description:"Focus an initiative"`
+	Task    FocusTaskCommand        `command:"task" description:"Focus a task"`
+	Pop     FocusPopCommand         `command:"pop" description:"Pop the current task focus"`
+	Clear   FocusClearCommand       `command:"clear" description:"Clear the session focus"`
+	Back    FocusBackCommand        `command:"back" description:"Return to global focus"`
+	Ind     FocusIndependentCommand `command:"ind" description:"Use independent session focus"`
+	appOpts *config.AppOptions
+}
+
+// SetAppOptions supplies project options to all focus subcommands.
+func (cmd *FocusCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+	cmd.Show.SetAppOptions(opts)
+	cmd.Plan.SetAppOptions(opts)
+	cmd.Task.SetAppOptions(opts)
+	cmd.Pop.SetAppOptions(opts)
+	cmd.Clear.SetAppOptions(opts)
+	cmd.Back.SetAppOptions(opts)
+	cmd.Ind.SetAppOptions(opts)
 }
 
 // Execute requires a focus subcommand so the agent intent is explicit.
 func (cmd *FocusCommand) Execute(args []string) error {
 	return fmt.Errorf("focus requires a subcommand\nACTION: Run 'jaflow help focus'.")
+}
+
+// FocusIndependentCommand provides focus operations for an isolated session.
+type FocusIndependentCommand struct {
+	Plan    FocusPlanCommand `command:"plan" description:"Focus an initiative independently"`
+	Task    FocusTaskCommand `command:"task" description:"Focus a task independently"`
+	Args    []string         `positional-args:"yes"`
+	appOpts *config.AppOptions
+}
+
+// SetAppOptions supplies project options to independent focus commands.
+func (cmd *FocusIndependentCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+	cmd.Plan.SetAppOptions(opts)
+	cmd.Task.SetAppOptions(opts)
+}
+
+// Execute supports smart independent focus by initiative name.
+func (cmd *FocusIndependentCommand) Execute(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("focus ind requires plan or task\nACTION: Run 'jaflow focus ind plan <name>' or 'jaflow focus ind task <uuid>'.")
+	}
+	return cmd.Plan.execute(args, true)
 }
 
 // FocusShowCommand displays the current session anchor.
@@ -63,6 +101,10 @@ func (cmd *FocusPlanCommand) SetAppOptions(opts *config.AppOptions) {
 
 // Execute focuses an initiative and pushes its next ready task.
 func (cmd *FocusPlanCommand) Execute(args []string) error {
+	return cmd.execute(args, false)
+}
+
+func (cmd *FocusPlanCommand) execute(args []string, independent bool) error {
 	if len(args) != 1 {
 		return fmt.Errorf("focus plan requires one initiative name\nACTION: Run 'jaflow help focus'.")
 	}
@@ -96,7 +138,11 @@ func (cmd *FocusPlanCommand) Execute(args []string) error {
 	if err := store.SaveFocus(context.Background(), state); err != nil {
 		return err
 	}
-	fmt.Printf("Focused initiative %s\n", initiative.Name)
+	if independent {
+		fmt.Printf("Independent focus anchored to plan: %s\n", initiative.Name)
+	} else {
+		fmt.Printf("Focused initiative %s\n", initiative.Name)
+	}
 	if len(ready) > 0 {
 		fmt.Printf("Next task %s: %s\n", shortID(ready[0].ID), ready[0].Description)
 	}
@@ -115,6 +161,10 @@ func (cmd *FocusTaskCommand) SetAppOptions(opts *config.AppOptions) {
 
 // Execute focuses a task and preserves its initiative anchor.
 func (cmd *FocusTaskCommand) Execute(args []string) error {
+	return cmd.execute(args, false)
+}
+
+func (cmd *FocusTaskCommand) execute(args []string, independent bool) error {
 	taskID, err := oneTaskID("focus task", args)
 	if err != nil {
 		return err
@@ -182,6 +232,36 @@ func (cmd *FocusPopCommand) Execute(args []string) error {
 		return err
 	}
 	fmt.Printf("Focus popped; current task: %s\n", displayTaskID(state.FocusedTaskID))
+	return nil
+}
+
+// FocusBackCommand exits the current independent session.
+type FocusBackCommand struct {
+	appOpts *config.AppOptions
+}
+
+// SetAppOptions supplies project options to the command.
+func (cmd *FocusBackCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+}
+
+// Execute deletes the current non-global session and falls back to global focus.
+func (cmd *FocusBackCommand) Execute(args []string) error {
+	if len(args) != 0 {
+		return fmt.Errorf("focus back accepts no arguments")
+	}
+	if cmd.appOpts.SessionID == "global" {
+		return fmt.Errorf("cannot leave the global focus\nACTION: Set JACAZUL_SESSION_ID before using 'jaflow focus back'.")
+	}
+	store, err := openStore(cmd.appOpts)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if err := store.DeleteSession(context.Background(), cmd.appOpts.ProjectID, cmd.appOpts.SessionID); err != nil {
+		return err
+	}
+	fmt.Println("Switched back to global focus")
 	return nil
 }
 

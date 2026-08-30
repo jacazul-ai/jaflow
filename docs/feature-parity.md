@@ -98,6 +98,10 @@ jaflow note <uuid> <type> <message...>
 jaflow notes <uuid>
 jaflow context <uuid>
 jaflow ticket <uuid> <ticket>
+jaflow handoff <uuid> <message...>
+jaflow focus ind task <uuid>
+jaflow focus back
+jaflow session <list|show|resume|ack|dump|purge>
 ```
 
 `note` normalizes semantic aliases to uppercase kinds, `notes` exposes

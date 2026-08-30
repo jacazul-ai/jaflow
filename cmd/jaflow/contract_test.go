@@ -262,6 +262,78 @@ func TestRoadmapInitializationHasDuplicateGuard(t *testing.T) {
 	}
 }
 
+func TestHandoffExecutesAndAnnotates(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "handoff", "First", "Second")
+	if err != nil {
+		t.Fatalf("create handoff plan: %v\n%s", err, output)
+	}
+	matches := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindAllStringSubmatch(output, -1)
+	if len(matches) != 2 {
+		t.Fatalf("handoff plan output = %q, want two task UUIDs", output)
+	}
+	first, second := matches[0][1], matches[1][1]
+	for _, args := range [][]string{
+		{"execute", first},
+		{"outcome", first, "First complete"},
+		{"done", first},
+	} {
+		if output, err := runJaflow(t, binary, harness, args...); err != nil {
+			t.Fatalf("run %v: %v\n%s", args, err, output)
+		}
+	}
+	if output, err := runJaflow(t, binary, harness, "handoff", second, "Start second"); err != nil {
+		t.Fatalf("handoff second task: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "notes", second); err != nil || !strings.Contains(output, "HANDOFF: Start second") {
+		t.Fatalf("handoff notes = %q, err %v; want HANDOFF annotation", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "tree", "handoff"); err != nil || !strings.Contains(output, "[ACTIVE] "+second) {
+		t.Fatalf("handoff tree = %q, err %v; want active target", output, err)
+	}
+}
+
+func TestIndependentFocusAndNativeSessionLifecycle(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "sessions", "Task")
+	if err != nil {
+		t.Fatalf("create session plan: %v\n%s", err, output)
+	}
+	match := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		t.Fatalf("session plan output = %q, want task UUID", output)
+	}
+	taskID := match[1]
+	if output, err := runJaflow(t, binary, harness, "focus", "ind", "task", taskID); err != nil {
+		t.Fatalf("independent focus: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "session", "list"); err != nil || !strings.Contains(output, "* session") {
+		t.Fatalf("session list = %q, err %v; want current session", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "session", "dump"); err != nil {
+		t.Fatalf("session dump: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "session", "resume"); err != nil || !strings.Contains(output, "SESSION HANDOFF") {
+		t.Fatalf("session resume = %q, err %v; want handoff", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "session", "dump"); err == nil || !strings.Contains(output, "unfilled") {
+		t.Fatalf("duplicate session dump = %q, err %v; want unfilled guard", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "session", "ack"); err != nil {
+		t.Fatalf("session ack: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "session", "resume"); err != nil || !strings.Contains(strings.ToLower(output), "already acknowledged") {
+		t.Fatalf("acknowledged resume = %q, err %v; want acknowledged note", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "focus", "back"); err != nil || !strings.Contains(output, "Switched back to global focus") {
+		t.Fatalf("focus back = %q, err %v; want global fallback", output, err)
+	}
+}
+
 func TestExternalTicketInheritanceContracts(t *testing.T) {
 	binary := buildJaflow(t)
 	harness := testharness.NewHarness(t, "project", "session")

@@ -7,15 +7,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/jacazul-ai/jaflow/internal/task"
+	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
-
-const schemaVersion = 3
 
 // Store persists one project's workflow state in SQLite.
 type Store struct {
@@ -224,155 +224,23 @@ func (s *Store) configure(ctx context.Context) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version INTEGER PRIMARY KEY,
-			applied_at TEXT NOT NULL
-		)
-	`); err != nil {
-		return fmt.Errorf("create migration table: %w", err)
-	}
-
-	var version int
-	if err := s.db.QueryRowContext(ctx,
-		"SELECT COALESCE(MAX(version), 0) FROM schema_migrations").Scan(&version); err != nil {
-		return fmt.Errorf("read schema version: %w", err)
-	}
-	for _, current := range migrations() {
-		if version >= current.version {
-			continue
-		}
-		if err := s.applyMigration(ctx, current); err != nil {
-			return err
-		}
-		version = current.version
-	}
-	return nil
-}
-
-type migration struct {
-	version    int
-	statements []string
-}
-
-func migrations() []migration {
-	return []migration{
-		{version: 1, statements: schemaV1()},
-		{version: 2, statements: schemaV2()},
-		{version: 3, statements: schemaV3()},
-	}
-}
-
-func (s *Store) applyMigration(ctx context.Context, current migration) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	migrationFS, err := fs.Sub(embeddedMigrations, "migrations")
 	if err != nil {
-		return fmt.Errorf("begin schema migration %d: %w", current.version, err)
+		return fmt.Errorf("open embedded migrations: %w", err)
 	}
-	defer tx.Rollback()
-	for _, statement := range current.statements {
-		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("apply schema migration %d: %w", current.version, err)
-		}
+	provider, err := goose.NewProvider(
+		goose.DialectSQLite3,
+		s.db,
+		migrationFS,
+		goose.WithLogger(goose.NopLogger()),
+	)
+	if err != nil {
+		return fmt.Errorf("create migration provider: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx,
-		"INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-		current.version, timestamp()); err != nil {
-		return fmt.Errorf("record schema migration %d: %w", current.version, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit schema migration %d: %w", current.version, err)
+	if _, err := provider.Up(ctx); err != nil {
+		return fmt.Errorf("apply database migrations: %w", err)
 	}
 	return nil
-}
-
-func schemaV2() []string {
-	return []string{
-		"ALTER TABLE tasks ADD COLUMN started_at TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE tasks ADD COLUMN completed_at TEXT NOT NULL DEFAULT ''",
-		"ALTER TABLE tasks ADD COLUMN disposition TEXT NOT NULL DEFAULT ''",
-	}
-}
-
-func schemaV3() []string {
-	return []string{
-		`CREATE TABLE IF NOT EXISTS roadmap_entries (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			initiative_id TEXT,
-			phase TEXT NOT NULL,
-			description TEXT NOT NULL,
-			status TEXT NOT NULL,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL,
-			UNIQUE (project_id, description)
-		)`,
-		`CREATE INDEX IF NOT EXISTS roadmap_project_idx
-			ON roadmap_entries (project_id, phase, status)`,
-	}
-}
-
-func schemaV1() []string {
-	return []string{
-		`CREATE TABLE IF NOT EXISTS initiatives (
-			id TEXT PRIMARY KEY,
-			project_id TEXT NOT NULL,
-			name TEXT NOT NULL,
-			status TEXT NOT NULL,
-			external_ticket TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL,
-			UNIQUE (project_id, name)
-		)`,
-		`CREATE INDEX IF NOT EXISTS initiatives_project_idx
-			ON initiatives (project_id, status, name)`,
-		`CREATE TABLE IF NOT EXISTS tasks (
-			id TEXT PRIMARY KEY,
-			initiative_id TEXT NOT NULL REFERENCES initiatives(id) ON DELETE CASCADE,
-			description TEXT NOT NULL,
-			mode TEXT NOT NULL DEFAULT '',
-			status TEXT NOT NULL,
-			outcome TEXT NOT NULL DEFAULT '',
-			external_ticket TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		)`,
-		`CREATE INDEX IF NOT EXISTS tasks_initiative_idx
-			ON tasks (initiative_id, status, created_at)`,
-		`CREATE TABLE IF NOT EXISTS task_dependencies (
-			task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-			depends_on_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-			PRIMARY KEY (task_id, depends_on_id),
-			CHECK (task_id <> depends_on_id)
-		)`,
-		`CREATE INDEX IF NOT EXISTS task_dependencies_parent_idx
-			ON task_dependencies (depends_on_id)`,
-		`CREATE TABLE IF NOT EXISTS annotations (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-			kind TEXT NOT NULL,
-			body TEXT NOT NULL,
-			created_at TEXT NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS sessions (
-			project_id TEXT NOT NULL,
-			session_id TEXT NOT NULL,
-			focused_initiative_id TEXT,
-			focused_task_id TEXT,
-			task_stack_json TEXT NOT NULL DEFAULT '[]',
-			updated_at TEXT NOT NULL,
-			PRIMARY KEY (project_id, session_id)
-		)`,
-		`CREATE TABLE IF NOT EXISTS cache_entries (
-			project_id TEXT NOT NULL,
-			session_id TEXT NOT NULL,
-			cache_key TEXT NOT NULL,
-			output TEXT NOT NULL,
-			output_hash TEXT NOT NULL,
-			expires_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL,
-			PRIMARY KEY (project_id, session_id, cache_key)
-		)`,
-	}
 }
 
 func findInitiativeQuery() string {
