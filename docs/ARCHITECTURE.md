@@ -6,7 +6,8 @@
 knowledge, client prompt generation, persona rendering, or launcher bootstrap.
 
 The architecture must preserve the current local feature-parity target while
-leaving a clean boundary for future team orchestration.
+leaving a clean boundary for future team orchestration. The target distributed
+context model is documented in [DISTRIBUTED-CONTEXT.md](DISTRIBUTED-CONTEXT.md).
 
 ## Runtime Layers
 
