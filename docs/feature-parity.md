@@ -91,6 +91,19 @@ reintroducing Taskwarrior as the native source of truth:
   annotation on that task. It must preserve the existing lifecycle safety
   rules and actionable errors.
 
+The native context command surface is:
+
+```text
+jaflow note <uuid> <type> <message...>
+jaflow notes <uuid>
+jaflow context <uuid>
+```
+
+`note` normalizes semantic aliases to uppercase kinds, `notes` exposes
+creation timestamps for deletion, and `context` renders direct plus inherited
+annotations. These commands operate on the native SQLite store; they do not
+require the Taskwarrior binary.
+
 This contract is intentionally expressed at the workflow/store boundary so
 future Taskwarrior import or broker adapters can project the same behavior
 without owning native context semantics.

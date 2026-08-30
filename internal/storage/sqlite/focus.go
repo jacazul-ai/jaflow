@@ -146,21 +146,24 @@ func (s *Store) SetTaskTicket(ctx context.Context, taskID string, ticket string)
 	return nil
 }
 
-// AddAnnotation appends a structured note to a task.
+// AddAnnotation appends a canonical structured note to a task.
 func (s *Store) AddAnnotation(ctx context.Context, taskID string, kind string, body string) error {
 	current, err := s.GetTask(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	kind = strings.TrimSpace(kind)
+	canonicalKind, ok := task.NormalizeAnnotationKind(kind)
+	if !ok {
+		return fmt.Errorf("invalid annotation kind %q", strings.TrimSpace(kind))
+	}
 	body = strings.TrimSpace(body)
-	if kind == "" || body == "" {
-		return errors.New("annotation kind and body are required")
+	if body == "" {
+		return errors.New("annotation body is required")
 	}
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO annotations (task_id, kind, body, created_at)
 		VALUES (?, ?, ?, ?)
-	`, current.ID, kind, body, timestamp())
+	`, current.ID, canonicalKind, body, timestamp())
 	if err != nil {
 		return fmt.Errorf("add annotation: %w", err)
 	}
@@ -223,6 +226,21 @@ func (s *Store) ClearCache(ctx context.Context, projectID string, sessionID stri
 	`, projectID, sessionID, prefix+"%")
 	if err != nil {
 		return fmt.Errorf("clear cache: %w", err)
+	}
+	return nil
+}
+
+// ClearCacheKey removes one exact cache entry for a session.
+func (s *Store) ClearCacheKey(ctx context.Context, projectID string, sessionID string, key string) error {
+	if projectID == "" || sessionID == "" || key == "" {
+		return errors.New("project ID, session ID, and cache key are required")
+	}
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM cache_entries
+		WHERE project_id = ? AND session_id = ? AND cache_key = ?
+	`, projectID, sessionID, key)
+	if err != nil {
+		return fmt.Errorf("clear cache key: %w", err)
 	}
 	return nil
 }

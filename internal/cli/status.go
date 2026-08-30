@@ -64,7 +64,16 @@ func (cmd *StatusCommand) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	output := renderStatus(tasks, cmd.PendingOnly)
+	focus, err := store.LoadFocus(context.Background(), cmd.appOpts.ProjectID, cmd.appOpts.SessionID)
+	if err != nil {
+		return err
+	}
+	output, err := renderStatus(
+		context.Background(), store, tasks, initiativeName, focus.FocusedTaskID, cmd.PendingOnly,
+	)
+	if err != nil {
+		return err
+	}
 	fmt.Print(output)
 	if !cmd.PendingOnly {
 		if err := store.SetCache(
@@ -81,12 +90,30 @@ func (cmd *StatusCommand) Execute(args []string) error {
 	return nil
 }
 
-func renderStatus(tasks []task.Task, pendingOnly bool) string {
+func renderStatus(
+	ctx context.Context,
+	store *sqlite.Store,
+	tasks []task.Task,
+	initiativeName string,
+	focusedTaskID string,
+	pendingOnly bool,
+) (string, error) {
+	var output strings.Builder
+	if initiativeName == "" {
+		initiativeName = "ALL ACTIVE"
+	}
+	fmt.Fprintf(&output, "══ Plan: %s ══\n", initiativeName)
 	if len(tasks) == 0 {
-		return "No tasks found.\n"
+		output.WriteString("No tasks found.\n")
+		return output.String(), nil
 	}
 
-	var output strings.Builder
+	if focusedTaskID != "" {
+		if err := appendFocusedContext(ctx, store, tasks, focusedTaskID, &output); err != nil {
+			return "", err
+		}
+	}
+
 	pending := 0
 	completed := 0
 	for _, current := range tasks {
@@ -114,7 +141,41 @@ func renderStatus(tasks []task.Task, pendingOnly bool) string {
 		}
 	}
 	if output.Len() == 0 {
-		return "No tasks found.\n"
+		return "No tasks found.\n", nil
 	}
-	return output.String()
+	return output.String(), nil
+}
+
+func appendFocusedContext(
+	ctx context.Context,
+	store *sqlite.Store,
+	tasks []task.Task,
+	focusedTaskID string,
+	output *strings.Builder,
+) error {
+	focused, err := store.GetTask(ctx, focusedTaskID)
+	if err != nil {
+		return err
+	}
+	for _, current := range tasks {
+		if current.ID != focused.ID {
+			continue
+		}
+		direct, err := store.ListAnnotations(ctx, focused.ID)
+		if err != nil {
+			return err
+		}
+		inherited, err := store.InheritedAnnotations(ctx, focused.ID)
+		if err != nil {
+			return err
+		}
+		if len(direct) == 0 && len(inherited) == 0 {
+			return nil
+		}
+		fmt.Fprintf(output, "FOCUS CONTEXT [%s]:\n", shortID(focused.ID))
+		writeDirectContext(output, direct)
+		writeInheritedContext(output, inherited)
+		return nil
+	}
+	return nil
 }

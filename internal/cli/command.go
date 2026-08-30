@@ -134,6 +134,46 @@ var helpEntries = []helpEntry{
 		next:     "Run 'jaflow done <uuid>' after the outcome is recorded.",
 	},
 	{
+		name:    "note",
+		summary: "Add or delete structured task context",
+		usage:   "jaflow note <task-uuid> <type> <message...>",
+		role:    "Use this to persist decisions, research, outcomes, handoffs, and other task context.",
+		preconditions: []string{
+			"The task must exist in the selected project database.",
+			"Use a supported semantic type or 'delete' with a timestamp.",
+		},
+		effects: []string{
+			"Stores an uppercase annotation kind and message with a creation timestamp.",
+			"Notes remain allowed on completed tasks; delete removes one timestamped annotation.",
+		},
+		examples: []string{
+			"jaflow note 57c3fc80 decision 'Use the native store'",
+			"jaflow note 57c3fc80 delete 2026-08-29T21:36:32.123Z",
+		},
+		next: "Run 'jaflow notes <uuid>' to inspect annotations or 'jaflow context <uuid>' for inherited context.",
+	},
+	{
+		name:     "notes",
+		summary:  "List task annotations",
+		usage:    "jaflow notes <task-uuid>",
+		role:     "Use this to inspect the durable annotations attached to one task.",
+		effects:  []string{"Prints annotation timestamps, semantic kinds, and messages."},
+		examples: []string{"jaflow notes 57c3fc80"},
+		next:     "Use a listed timestamp with 'jaflow note <uuid> delete <timestamp>' when removal is required.",
+	},
+	{
+		name:    "context",
+		summary: "Show direct and inherited task context",
+		usage:   "jaflow context <task-uuid>",
+		role:    "Use this to inspect annotations on a task and relevant dependency ancestors.",
+		effects: []string{
+			"Shows direct annotations and recursively inherited context in dependency-first order.",
+			"Dependency cycles are bounded and cannot recurse indefinitely.",
+		},
+		examples: []string{"jaflow context 57c3fc80"},
+		next:     "Use 'jaflow status <initiative>' for the focused workflow view with inherited context.",
+	},
+	{
 		name:    "done",
 		summary: "Complete a task and expose ready work",
 		usage:   "jaflow done <task-uuid>",

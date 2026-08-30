@@ -261,3 +261,138 @@ func TestRoadmapInitializationHasDuplicateGuard(t *testing.T) {
 		t.Fatalf("roadmap show = %q, err %v; want ledger entry", output, err)
 	}
 }
+
+func TestNoteAndContextContracts(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "context", "Root", "Middle", "Leaf")
+	if err != nil {
+		t.Fatalf("create context plan: %v\n%s", err, output)
+	}
+	matches := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindAllStringSubmatch(output, -1)
+	if len(matches) != 3 {
+		t.Fatalf("context plan output = %q, want three task UUIDs", output)
+	}
+	root, middle, leaf := matches[0][1], matches[1][1], matches[2][1]
+
+	if output, err := runJaflow(t, binary, harness, "note", root, "decision", "Root decision"); err != nil {
+		t.Fatalf("add decision note: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "note", middle, "research", "Middle research"); err != nil {
+		t.Fatalf("add research note: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "note", root, "question", "Why root?"); err != nil {
+		t.Fatalf("add question note: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "note", root, "hypothesis", "Root may explain it"); err != nil {
+		t.Fatalf("add hypothesis note: %v\n%s", err, output)
+	}
+
+	notes, err := runJaflow(t, binary, harness, "notes", root)
+	if err != nil || !strings.Contains(notes, "DECISION: Root decision") {
+		t.Fatalf("notes output = %q, err %v; want decision annotation", notes, err)
+	}
+	timestampMatch := regexp.MustCompile(`\[([^]]+)\] DECISION: Root decision`).FindStringSubmatch(notes)
+	if len(timestampMatch) != 2 {
+		t.Fatalf("notes output = %q, want timestamped decision", notes)
+	}
+
+	contextOutput, err := runJaflow(t, binary, harness, "context", leaf)
+	if err != nil || !strings.Contains(contextOutput, "Root") {
+		t.Fatalf("context output = %q, err %v; want target context", contextOutput, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "focus", "task", leaf); err != nil {
+		t.Fatalf("focus leaf task: %v\n%s", err, output)
+	}
+	statusOutput, err := runJaflow(t, binary, harness, "status", "context")
+	for _, expected := range []string{
+		"INHERITED CONTEXT",
+		"DECISION: Root decision",
+		"RESEARCH: Middle research",
+		"QUESTION: Why root?",
+		"HYPOTHESIS: Root may explain it",
+	} {
+		if err != nil || !strings.Contains(statusOutput, expected) {
+			t.Fatalf("status output = %q, err %v; want %q", statusOutput, err, expected)
+		}
+	}
+
+	if output, err := runJaflow(t, binary, harness, "note", root, "delete", timestampMatch[1]); err != nil {
+		t.Fatalf("delete annotation: %v\n%s", err, output)
+	}
+	remaining, err := runJaflow(t, binary, harness, "notes", root)
+	if err != nil || strings.Contains(remaining, "Root decision") {
+		t.Fatalf("remaining notes = %q, err %v; deleted annotation remains", remaining, err)
+	}
+
+	if output, err := runJaflow(t, binary, harness, "note", leaf, "note", "Direct context"); err != nil {
+		t.Fatalf("add direct note: %v\n%s", err, output)
+	}
+	contextOutput, err = runJaflow(t, binary, harness, "context", leaf)
+	if err != nil || !strings.Contains(contextOutput, "NOTE: Direct context") {
+		t.Fatalf("direct context output = %q, err %v; want direct note", contextOutput, err)
+	}
+}
+
+func TestNotesAllowCompletedTasksAndRejectInvalidKinds(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "completed-notes", "Task")
+	if err != nil {
+		t.Fatalf("create completed-notes plan: %v\n%s", err, output)
+	}
+	match := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		t.Fatalf("plan output = %q, want task UUID", output)
+	}
+	taskID := match[1]
+
+	if output, err := runJaflow(t, binary, harness, "note", taskID, "invalid", "Message"); err == nil || !strings.Contains(output, "ACTION: Use one of the allowed semantic types") {
+		t.Fatalf("invalid note output = %q, err %v; want actionable error", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "execute", taskID); err != nil {
+		t.Fatalf("execute task: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "outcome", taskID, "Completed"); err != nil {
+		t.Fatalf("record outcome: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "done", taskID); err != nil {
+		t.Fatalf("complete task: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "note", taskID, "note", "Post-completion note"); err != nil {
+		t.Fatalf("add post-completion note: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "notes", taskID); err != nil || !strings.Contains(output, "NOTE: Post-completion note") {
+		t.Fatalf("completed task notes = %q, err %v; want note", output, err)
+	}
+}
+
+func TestNoteInvalidatesFocusedStatusCache(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "cache-notes", "Task")
+	if err != nil {
+		t.Fatalf("create cache-notes plan: %v\n%s", err, output)
+	}
+	match := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		t.Fatalf("plan output = %q, want task UUID", output)
+	}
+	taskID := match[1]
+	if output, err := runJaflow(t, binary, harness, "focus", "task", taskID); err != nil {
+		t.Fatalf("focus cache task: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-notes"); err != nil {
+		t.Fatalf("prime status cache: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "note", taskID, "decision", "Cache changed"); err != nil {
+		t.Fatalf("add cache note: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "status", "cache-notes")
+	if err != nil || strings.Contains(output, "[cached]") || !strings.Contains(output, "DECISION: Cache changed") {
+		t.Fatalf("status after note = %q, err %v; want refreshed context", output, err)
+	}
+}

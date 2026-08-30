@@ -1,6 +1,9 @@
 package task
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Status describes the current state of a workflow task.
 type Status string
@@ -10,6 +13,52 @@ const (
 	Active    Status = "active"
 	Completed Status = "completed"
 )
+
+// Annotation is a structured piece of durable workflow context.
+type Annotation struct {
+	ID        int64  `json:"id"`
+	TaskID    string `json:"task_id"`
+	Kind      string `json:"kind"`
+	Body      string `json:"body"`
+	CreatedAt string `json:"created_at"`
+}
+
+// ContextEntry associates inherited context with its source task.
+type ContextEntry struct {
+	TaskID          string
+	TaskDescription string
+	Annotation      Annotation
+}
+
+var annotationKinds = map[string]string{
+	"research":   "RESEARCH",
+	"r":          "RESEARCH",
+	"decision":   "DECISION",
+	"d":          "DECISION",
+	"outcome":    "OUTCOME",
+	"o":          "OUTCOME",
+	"handoff":    "HANDOFF",
+	"h":          "HANDOFF",
+	"blocked":    "BLOCKED",
+	"b":          "BLOCKED",
+	"lesson":     "LESSON",
+	"l":          "LESSON",
+	"question":   "QUESTION",
+	"q":          "QUESTION",
+	"hypothesis": "HYPOTHESIS",
+	"y":          "HYPOTHESIS",
+	"ac":         "AC",
+	"a":          "AC",
+	"note":       "NOTE",
+	"n":          "NOTE",
+	"link":       "LINK",
+}
+
+// NormalizeAnnotationKind converts a semantic note alias to its canonical kind.
+func NormalizeAnnotationKind(kind string) (string, bool) {
+	canonical, ok := annotationKinds[strings.ToLower(strings.TrimSpace(kind))]
+	return canonical, ok
+}
 
 // InitiativeStatus describes the lifecycle of an initiative.
 type InitiativeStatus string
@@ -39,18 +88,19 @@ type CreateInitiativeInput struct {
 
 // Task is the local workflow representation shared by task backends.
 type Task struct {
-	ID             string   `json:"id"`
-	InitiativeID   string   `json:"initiative_id"`
-	InitiativeName string   `json:"initiative_name"`
-	Description    string   `json:"description"`
-	Mode           string   `json:"mode,omitempty"`
-	Status         Status   `json:"status"`
-	Outcome        string   `json:"outcome,omitempty"`
-	ExternalTicket string   `json:"external_ticket,omitempty"`
-	StartedAt      string   `json:"started_at,omitempty"`
-	CompletedAt    string   `json:"completed_at,omitempty"`
-	Disposition    string   `json:"disposition,omitempty"`
-	Dependencies   []string `json:"dependencies,omitempty"`
+	ID             string       `json:"id"`
+	InitiativeID   string       `json:"initiative_id"`
+	InitiativeName string       `json:"initiative_name"`
+	Description    string       `json:"description"`
+	Mode           string       `json:"mode,omitempty"`
+	Status         Status       `json:"status"`
+	Outcome        string       `json:"outcome,omitempty"`
+	ExternalTicket string       `json:"external_ticket,omitempty"`
+	StartedAt      string       `json:"started_at,omitempty"`
+	CompletedAt    string       `json:"completed_at,omitempty"`
+	Disposition    string       `json:"disposition,omitempty"`
+	Dependencies   []string     `json:"dependencies,omitempty"`
+	Annotations    []Annotation `json:"annotations,omitempty"`
 
 	// ProjectID and Plan are compatibility fields for the legacy adapter.
 	ProjectID string `json:"project_id,omitempty"`
