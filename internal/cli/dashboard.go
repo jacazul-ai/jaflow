@@ -174,7 +174,7 @@ func renderPlans(store *sqlite.Store, opts *config.AppOptions, all bool, closed 
 	}
 	output := renderPlanList(opts.ProjectID, summaries, all, closed)
 	fmt.Print(output)
-	return store.SetCache(ctx, opts.ProjectID, opts.SessionID, cacheKey, output, time.Now().UTC().Add(30*time.Second))
+	return store.SetCache(ctx, opts.ProjectID, opts.SessionID, cacheKey, output, time.Now().UTC().Add(5*time.Minute))
 }
 
 func renderPlanList(projectID string, summaries []task.InitiativeSummary, all bool, closed bool) string {
@@ -243,7 +243,7 @@ func renderPonder(store *sqlite.Store, opts *config.AppOptions, all bool, withBa
 		return err
 	}
 	fmt.Print(output)
-	return store.SetCache(ctx, opts.ProjectID, opts.SessionID, cacheKey, output, time.Now().UTC().Add(5*time.Minute))
+	return store.SetCache(ctx, opts.ProjectID, opts.SessionID, cacheKey, output, time.Now().UTC().Add(10*time.Minute))
 }
 
 func renderDashboard(ctx context.Context, store *sqlite.Store, opts *config.AppOptions, summaries []task.InitiativeSummary, focus task.FocusState, showAll bool, table bool) (string, error) {

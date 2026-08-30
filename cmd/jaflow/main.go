@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	"github.com/jacazul-ai/jaflow/internal/cli"
 	"github.com/jacazul-ai/jaflow/internal/config"
@@ -20,6 +21,7 @@ func getVersion() string {
 
 func main() {
 	var opts config.AppOptions
+	os.Args = append([]string{os.Args[0]}, normalizeFocusAlias(os.Args[1:])...)
 
 	parser := flags.NewParser(&opts, flags.Default&^flags.PrintErrors)
 	parser.Usage = "[Options] command"
@@ -43,4 +45,41 @@ func main() {
 		parser.WriteHelp(os.Stderr)
 		os.Exit(1)
 	}
+}
+
+func normalizeFocusAlias(args []string) []string {
+	result := append([]string(nil), args...)
+	index := 0
+	for index < len(result) {
+		if strings.HasPrefix(result[index], "--project-id=") ||
+			strings.HasPrefix(result[index], "--taskdata=") ||
+			strings.HasPrefix(result[index], "--database-path=") ||
+			strings.HasPrefix(result[index], "--session-id=") {
+			index++
+			continue
+		}
+		switch result[index] {
+		case "-v", "--verbose", "-V", "--version":
+			index++
+		case "--project-id", "--taskdata", "--database-path", "--session-id":
+			index += 2
+		default:
+			if result[index] != "focus" {
+				return result
+			}
+			if index+1 == len(result) {
+				return append(result, "show")
+			}
+			switch result[index+1] {
+			case "show", "plan", "ini", "task", "pop", "clear", "back", "ind", "interest":
+				return result
+			default:
+				if result[index+1] == "" || result[index+1][0] == '-' {
+					return result
+				}
+				return append(result[:index+1], append([]string{"plan"}, result[index+1:]...)...)
+			}
+		}
+	}
+	return result
 }

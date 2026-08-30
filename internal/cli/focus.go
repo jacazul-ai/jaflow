@@ -19,7 +19,9 @@ type FocusCommand struct {
 	Clear    FocusClearCommand       `command:"clear" description:"Clear the session focus"`
 	Back     FocusBackCommand        `command:"back" description:"Return to global focus"`
 	Ind      FocusIndependentCommand `command:"ind" description:"Use independent session focus"`
+	Ini      FocusPlanCommand        `command:"ini" description:"Focus an initiative"`
 	Interest FocusInterestCommand    `command:"interest" description:"Manage plans of interest"`
+	Args     []string                `positional-args:"yes"`
 	appOpts  *config.AppOptions
 }
 
@@ -33,12 +35,19 @@ func (cmd *FocusCommand) SetAppOptions(opts *config.AppOptions) {
 	cmd.Clear.SetAppOptions(opts)
 	cmd.Back.SetAppOptions(opts)
 	cmd.Ind.SetAppOptions(opts)
+	cmd.Ini.SetAppOptions(opts)
 	cmd.Interest.SetAppOptions(opts)
 }
 
-// Execute requires a focus subcommand so the agent intent is explicit.
+// Execute shows focus by default or supports smart initiative focus.
 func (cmd *FocusCommand) Execute(args []string) error {
-	return fmt.Errorf("focus requires a subcommand\nACTION: Run 'jaflow help focus'.")
+	if len(args) == 0 {
+		return cmd.Show.Execute(nil)
+	}
+	if len(args) == 1 {
+		return cmd.Plan.execute(args, false)
+	}
+	return fmt.Errorf("focus accepts at most one smart initiative name\nACTION: Run 'jaflow help focus'.")
 }
 
 // FocusIndependentCommand provides focus operations for an isolated session.
@@ -171,7 +180,15 @@ func (cmd *FocusShowCommand) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	printFocus(state)
+	initiativeName := displayTaskID(state.InitiativeID)
+	if state.InitiativeID != "" {
+		initiative, err := store.FindInitiativeByID(context.Background(), cmd.appOpts.ProjectID, state.InitiativeID)
+		if err != nil {
+			return err
+		}
+		initiativeName = initiative.Name
+	}
+	printFocus(state, initiativeName)
 	return nil
 }
 
@@ -415,11 +432,11 @@ func pushFocus(stack []task.FocusEntry, entry task.FocusEntry) []task.FocusEntry
 	return append([]task.FocusEntry{entry}, filtered...)
 }
 
-func printFocus(state task.FocusState) {
+func printFocus(state task.FocusState, initiativeName string) {
 	fmt.Println("FOCUS")
 	fmt.Printf("Project: %s\n", state.ProjectID)
 	fmt.Printf("Session: %s\n", state.SessionID)
-	fmt.Printf("Initiative: %s\n", displayTaskID(state.InitiativeID))
+	fmt.Printf("Initiative: %s\n", initiativeName)
 	fmt.Printf("Task: %s\n", displayTaskID(state.FocusedTaskID))
 	fmt.Println("STACK:")
 	for _, entry := range state.TaskStack {

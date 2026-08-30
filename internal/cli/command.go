@@ -275,8 +275,8 @@ var helpEntries = []helpEntry{
 	{
 		name:    "focus",
 		summary: "Switch the project and session focus",
-		usage:   "jaflow focus <show|plan|task|pop|clear|back|ind> [value]",
-		role:    "Use this to move the agent anchor without losing the initiative chain.",
+		usage:   "jaflow focus [<initiative>|show|plan|ini|task|pop|clear|back|ind|interest] [value]",
+		role:    "Use this to move or inspect the agent anchor without losing the initiative chain.",
 		preconditions: []string{
 			"Focus is scoped to the selected PROJECT_ID and session ID.",
 			"focus task accepts a full UUID or an unambiguous short UUID.",

@@ -178,7 +178,10 @@ func clearTaskCaches(store *sqlite.Store, opts *config.AppOptions, current task.
 			return err
 		}
 	}
-	return store.ClearCache(ctx, opts.ProjectID, opts.SessionID, "ponder")
+	if err := store.ClearCache(ctx, opts.ProjectID, opts.SessionID, "ponder"); err != nil {
+		return err
+	}
+	return store.ClearCache(ctx, opts.ProjectID, opts.SessionID, "plans")
 }
 
 func writeDirectContext(writer io.Writer, annotations []task.Annotation) {

@@ -29,6 +29,34 @@ func (s *Store) FindInitiative(ctx context.Context, projectID string, name strin
 	return initiative, nil
 }
 
+// FindInitiativeByID returns one initiative by project and UUID.
+func (s *Store) FindInitiativeByID(ctx context.Context, projectID string, initiativeID string) (task.Initiative, error) {
+	if projectID == "" || initiativeID == "" {
+		return task.Initiative{}, errors.New("project ID and initiative ID are required")
+	}
+	var initiative task.Initiative
+	var status string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, project_id, name, status, external_ticket
+		FROM initiatives
+		WHERE project_id = ? AND id = ?
+	`, projectID, initiativeID).Scan(
+		&initiative.ID,
+		&initiative.ProjectID,
+		&initiative.Name,
+		&status,
+		&initiative.ExternalTicket,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return task.Initiative{}, fmt.Errorf("initiative %q not found", initiativeID)
+	}
+	if err != nil {
+		return task.Initiative{}, fmt.Errorf("find initiative by ID: %w", err)
+	}
+	initiative.Status = task.InitiativeStatus(status)
+	return initiative, nil
+}
+
 // LoadFocus returns session focus or an empty state when no anchor exists.
 func (s *Store) LoadFocus(ctx context.Context, projectID string, sessionID string) (task.FocusState, error) {
 	if projectID == "" || sessionID == "" {

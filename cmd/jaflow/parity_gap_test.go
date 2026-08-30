@@ -382,6 +382,70 @@ func TestPlansPreserveFiltersAndListOutput(t *testing.T) {
 	}
 }
 
+func TestFocusCompatibilityAliasesAndDefaultShow(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	if output, err := runJaflow(t, binary, harness, "plan", "focus-alias", "Task"); err != nil {
+		t.Fatalf("create focus alias plan: %v\n%s", err, output)
+	}
+	for _, args := range [][]string{
+		{"focus", "ini", "focus-alias"},
+		{"focus", "focus-alias"},
+	} {
+		if output, err := runJaflow(t, binary, harness, args...); err != nil {
+			t.Fatalf("run %v: %v\n%s", args, err, output)
+		}
+	}
+	output, err := runJaflow(t, binary, harness, "focus")
+	if err != nil {
+		t.Fatalf("show default focus: %v\n%s", err, output)
+	}
+	for _, expected := range []string{"FOCUS", "focus-alias", "Task:"} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("default focus output = %q, want %s", output, expected)
+		}
+	}
+}
+
+func TestPlansCacheInvalidatesAfterInitiativeCreation(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	if output, err := runJaflow(t, binary, harness, "plan", "first-plan", "First"); err != nil {
+		t.Fatalf("create first plan: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "plans"); err != nil {
+		t.Fatalf("prime plans cache: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "plan", "second-plan", "Second"); err != nil {
+		t.Fatalf("create second plan: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "plans")
+	if err != nil {
+		t.Fatalf("read refreshed plans: %v\n%s", err, output)
+	}
+	if strings.Contains(output, "[cached]") || !strings.Contains(output, "second-plan") {
+		t.Fatalf("plans after creation = %q, want refreshed second plan", output)
+	}
+}
+
+func TestPonderTableOutputMatchesReferenceColumns(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	if output, err := runJaflow(t, binary, harness, "plan", "table-plan", "Task"); err != nil {
+		t.Fatalf("create table plan: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "ponder", "--table", "--force")
+	if err != nil {
+		t.Fatalf("render table dashboard: %v\n%s", err, output)
+	}
+	if !strings.Contains(output, "| ST | UUID | MODE | PLAN | DESCRIPTION | URG |") {
+		t.Fatalf("table dashboard = %q, want reference columns", output)
+	}
+}
+
 func TestFocusPlanNeverSelectsBlockedTask(t *testing.T) {
 	binary := buildJaflow(t)
 	harness := testharness.NewHarness(t, "project", "session")

@@ -82,7 +82,7 @@ func (cmd *StatusCommand) Execute(args []string) error {
 			cmd.appOpts.SessionID,
 			cacheKey,
 			output,
-			time.Now().UTC().Add(30*time.Second),
+			time.Now().UTC().Add(2*time.Minute),
 		); err != nil {
 			return err
 		}
