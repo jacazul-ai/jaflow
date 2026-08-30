@@ -86,10 +86,11 @@ func (cmd *RoadmapInitCommand) Execute(args []string) error {
 
 // RoadmapAddCommand adds a manually classified phase.
 type RoadmapAddCommand struct {
-	Phase        string `long:"phase" description:"Roadmap phase"`
-	Description  string `long:"description" description:"Phase description"`
-	InitiativeID string `long:"initiative-id" description:"Optional initiative UUID"`
-	appOpts      *config.AppOptions
+	Phase          string `long:"phase" description:"Roadmap phase"`
+	Description    string `long:"description" description:"Phase description"`
+	InitiativeID   string `long:"initiative-id" description:"Optional initiative UUID"`
+	InitiativeName string `long:"ini" description:"Optional initiative name"`
+	appOpts        *config.AppOptions
 }
 
 // SetAppOptions supplies project options to the command.
@@ -99,7 +100,15 @@ func (cmd *RoadmapAddCommand) SetAppOptions(opts *config.AppOptions) {
 
 // Execute adds a phase to the ledger.
 func (cmd *RoadmapAddCommand) Execute(args []string) error {
-	if len(args) != 0 || cmd.Phase == "" || cmd.Description == "" {
+	phase := cmd.Phase
+	description := cmd.Description
+	if len(args) > 0 {
+		if len(args) != 2 || phase != "" || description != "" {
+			return fmt.Errorf("roadmap add accepts <phase> <description> or --phase and --description\nACTION: Run 'jaflow help roadmap'.")
+		}
+		phase, description = args[0], args[1]
+	}
+	if phase == "" || description == "" {
 		return fmt.Errorf("roadmap add requires --phase and --description\nACTION: Run 'jaflow help roadmap'.")
 	}
 	store, err := openStore(cmd.appOpts)
@@ -107,18 +116,26 @@ func (cmd *RoadmapAddCommand) Execute(args []string) error {
 		return err
 	}
 	defer store.Close()
+	initiativeID := cmd.InitiativeID
+	if initiativeID == "" && cmd.InitiativeName != "" {
+		initiative, err := store.FindInitiative(context.Background(), cmd.appOpts.ProjectID, cmd.InitiativeName)
+		if err != nil {
+			return err
+		}
+		initiativeID = initiative.ID
+	}
 	entry := task.RoadmapEntry{
 		ID:           newRoadmapID(),
 		ProjectID:    cmd.appOpts.ProjectID,
-		InitiativeID: cmd.InitiativeID,
-		Phase:        cmd.Phase,
-		Description:  cmd.Description,
+		InitiativeID: initiativeID,
+		Phase:        phase,
+		Description:  description,
 		Status:       task.Pending,
 	}
 	if err := store.AddRoadmapEntry(context.Background(), entry); err != nil {
 		return err
 	}
-	fmt.Printf("Roadmap phase added: [%s] %s (%s)\n", cmd.Phase, cmd.Description, entry.ID)
+	fmt.Printf("Roadmap phase added: [%s] %s (%s)\n", phase, description, entry.ID)
 	return nil
 }
 

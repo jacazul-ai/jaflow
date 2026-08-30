@@ -231,3 +231,150 @@ func TestDependencyCommandsPreserveReadySelection(t *testing.T) {
 		t.Fatalf("blocked next output = %q, want only First", output)
 	}
 }
+
+func TestDashboardIncludesSessionAndRecentlyClosedContext(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "dashboard", "Active")
+	if err != nil {
+		t.Fatalf("create dashboard plan: %v\n%s", err, output)
+	}
+	activeIDs := createdTaskIDs(output)
+	if len(activeIDs) != 1 {
+		t.Fatalf("dashboard plan output = %q, want one task ID", output)
+	}
+	for _, args := range [][]string{
+		{"focus", "task", activeIDs[0]},
+		{"focus", "interest", "add", "dashboard"},
+	} {
+		if output, err := runJaflow(t, binary, harness, args...); err != nil {
+			t.Fatalf("run %v: %v\n%s", args, err, output)
+		}
+	}
+
+	output, err = runJaflow(t, binary, harness, "ponder", "--force")
+	if err != nil {
+		t.Fatalf("render active dashboard: %v\n%s", err, output)
+	}
+	for _, expected := range []string{
+		"SESSION CONTEXT",
+		"Interests: dashboard",
+		"[PULSE SUMMARY]",
+		"[TASK LANDSCAPE]",
+		"[TACTICAL READOUT]",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("dashboard output = %q, want %s", output, expected)
+		}
+	}
+
+	output, err = runJaflow(t, binary, harness, "plan", "closed", "Closed task")
+	if err != nil {
+		t.Fatalf("create closed plan: %v\n%s", err, output)
+	}
+	closedIDs := createdTaskIDs(output)
+	if len(closedIDs) != 1 {
+		t.Fatalf("closed plan output = %q, want one task ID", output)
+	}
+	for _, args := range [][]string{
+		{"execute", closedIDs[0]},
+		{"outcome", closedIDs[0], "Closed outcome"},
+		{"done", closedIDs[0]},
+	} {
+		if output, err := runJaflow(t, binary, harness, args...); err != nil {
+			t.Fatalf("run %v: %v\n%s", args, err, output)
+		}
+	}
+
+	output, err = runJaflow(t, binary, harness, "ponder", "--force")
+	if err != nil {
+		t.Fatalf("render dashboard history: %v\n%s", err, output)
+	}
+	for _, expected := range []string{"[RECENTLY CLOSED]", "closed", "Closed outcome"} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("history output = %q, want %s", output, expected)
+		}
+	}
+}
+
+func TestRoadmapSupportsReferenceAddAndShipAliases(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	if output, err := runJaflow(t, binary, harness, "plan", "roadmap-target", "Task"); err != nil {
+		t.Fatalf("create roadmap target: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "roadmap", "init"); err != nil {
+		t.Fatalf("initialize roadmap: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "roadmap", "add", "next", "Positional phase")
+	if err != nil {
+		t.Fatalf("add positional roadmap phase: %v\n%s", err, output)
+	}
+	match := regexp.MustCompile(`Roadmap phase added: \[next\] Positional phase \(([^)]+)\)`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		t.Fatalf("roadmap add output = %q, want entry ID", output)
+	}
+
+	output, err = runJaflow(t, binary, harness, "ship", match[1])
+	if err != nil {
+		t.Fatalf("ship roadmap phase through alias: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "roadmap", "show")
+	if err != nil || !strings.Contains(output, "[shipped] Positional phase") {
+		t.Fatalf("roadmap after alias ship = %q, err %v; want shipped phase", output, err)
+	}
+}
+
+func TestPlansPreserveFiltersAndListOutput(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	for _, plan := range []string{"open-plan", "closed-plan"} {
+		if output, err := runJaflow(t, binary, harness, "plan", plan, "Task"); err != nil {
+			t.Fatalf("create %s: %v\n%s", plan, err, output)
+		}
+	}
+	planOutput, err := runJaflow(t, binary, harness, "plan", "closed-plan-2", "Task")
+	if err != nil {
+		t.Fatalf("create second closed plan: %v\n%s", err, planOutput)
+	}
+	ids := createdTaskIDs(planOutput)
+	if len(ids) != 1 {
+		t.Fatalf("closed plan output = %q, want one task ID", planOutput)
+	}
+	for _, args := range [][]string{
+		{"execute", ids[0]},
+		{"outcome", ids[0], "Closed"},
+		{"done", ids[0]},
+	} {
+		if output, err := runJaflow(t, binary, harness, args...); err != nil {
+			t.Fatalf("run %v: %v\n%s", args, err, output)
+		}
+	}
+
+	output, err := runJaflow(t, binary, harness, "plans", "--force")
+	if err != nil {
+		t.Fatalf("list active plans: %v\n%s", err, output)
+	}
+	if !strings.Contains(output, "open-plan") || strings.Contains(output, "closed-plan-2") || strings.Contains(output, "SESSION CONTEXT") {
+		t.Fatalf("active plans output = %q, want list-only active output", output)
+	}
+
+	output, err = runJaflow(t, binary, harness, "plans", "--closed", "--force")
+	if err != nil {
+		t.Fatalf("list closed plans: %v\n%s", err, output)
+	}
+	if !strings.Contains(output, "closed-plan-2") || strings.Contains(output, "open-plan") {
+		t.Fatalf("closed plans output = %q, want only closed plan", output)
+	}
+
+	output, err = runJaflow(t, binary, harness, "plans", "--all", "--force")
+	if err != nil {
+		t.Fatalf("list all plans: %v\n%s", err, output)
+	}
+	if !strings.Contains(output, "open-plan") || !strings.Contains(output, "closed-plan-2") {
+		t.Fatalf("all plans output = %q, want both plans", output)
+	}
+}

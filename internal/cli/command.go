@@ -330,10 +330,10 @@ var helpEntries = []helpEntry{
 	{
 		name:     "plans",
 		summary:  "List initiative summaries",
-		usage:    "jaflow plans [--all] [--with-backlog]",
+		usage:    "jaflow plans [--all|--closed] [--with-backlog]",
 		role:     "Use this to compare initiative lifecycle and work counts.",
-		effects:  []string{"Backlog initiatives are hidden unless --with-backlog is supplied."},
-		examples: []string{"jaflow plans", "jaflow plans --all"},
+		effects:  []string{"Backlog initiatives are hidden unless --with-backlog is supplied; --closed shows completed initiatives only."},
+		examples: []string{"jaflow plans", "jaflow plans --all", "jaflow plans --closed"},
 		next:     "Choose an initiative and run 'jaflow focus plan <name>'.",
 	},
 	{
@@ -502,6 +502,15 @@ var helpEntries = []helpEntry{
 		effects:  []string{"Persists a wait-until date without changing completion state."},
 		examples: []string{"jaflow wait 57c3fc80 tomorrow"},
 		next:     "Run 'jaflow next' after the wait date to inspect readiness.",
+	},
+	{
+		name:     "ship",
+		summary:  "Ship a roadmap phase",
+		usage:    "jaflow ship <roadmap-entry-id>",
+		role:     "Use this compatibility alias to mark one roadmap phase as shipped.",
+		effects:  []string{"Marks a pending roadmap entry completed without changing operational tasks."},
+		examples: []string{"jaflow ship roadmap-123"},
+		next:     "Run 'jaflow roadmap show' to verify the shipped phase.",
 	},
 	{
 		name:    "cache",
