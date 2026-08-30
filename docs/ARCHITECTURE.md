@@ -98,8 +98,8 @@ external GitHub credentials.
 
 Schema evolution uses Pressly Goose as an embedded library, not as a CLI
 subprocess. The SQLite store supplies an `embed.FS` migration provider with
-four ordered migration steps: the initial schema, task lifecycle columns, the
-roadmap ledger, and native session notes. The provider uses its own version
+five ordered migration steps: the initial schema, task lifecycle columns,
+the roadmap ledger, native session notes, and task due dates. The provider uses its own version
 table and keeps the application silent by default. The task lifecycle
 migration is a Go migration so it can safely add missing columns to databases
 created by the earlier migration runner.

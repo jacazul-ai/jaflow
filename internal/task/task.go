@@ -99,6 +99,7 @@ type Task struct {
 	StartedAt      string       `json:"started_at,omitempty"`
 	CompletedAt    string       `json:"completed_at,omitempty"`
 	Disposition    string       `json:"disposition,omitempty"`
+	DueAt          string       `json:"due_at,omitempty"`
 	Dependencies   []string     `json:"dependencies,omitempty"`
 	Annotations    []Annotation `json:"annotations,omitempty"`
 
@@ -165,6 +166,7 @@ type CreateTaskInput struct {
 	InitiativeID string
 	Description  string
 	Mode         string
+	DueAt        string
 	Dependencies []string
 
 	// ProjectID and Plan are compatibility fields for the legacy adapter.

@@ -262,6 +262,36 @@ func TestRoadmapInitializationHasDuplicateGuard(t *testing.T) {
 	}
 }
 
+func TestActiveBlockedAndOverdueViews(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	output, err := runJaflow(t, binary, harness, "plan", "views", "Active", "Blocked", "Overdue|testing|2000-01-01")
+	if err != nil {
+		t.Fatalf("create views plan: %v\n%s", err, output)
+	}
+	matches := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindAllStringSubmatch(output, -1)
+	if len(matches) != 3 {
+		t.Fatalf("views plan output = %q, want three task UUIDs", output)
+	}
+	if output, err := runJaflow(t, binary, harness, "execute", matches[0][1]); err != nil {
+		t.Fatalf("execute active task: %v\n%s", err, output)
+	}
+
+	output, err = runJaflow(t, binary, harness, "active")
+	if err != nil || !strings.Contains(output, "Active") || strings.Contains(output, "Blocked") {
+		t.Fatalf("active view = %q, err %v; want only active task", output, err)
+	}
+	output, err = runJaflow(t, binary, harness, "blocked")
+	if err != nil || !strings.Contains(output, "Blocked") || !strings.Contains(output, "Overdue") {
+		t.Fatalf("blocked view = %q, err %v; want blocked tasks", output, err)
+	}
+	output, err = runJaflow(t, binary, harness, "overdue")
+	if err != nil || !strings.Contains(output, "Overdue") || strings.Contains(output, "Blocked") {
+		t.Fatalf("overdue view = %q, err %v; want only overdue task", output, err)
+	}
+}
+
 func TestHandoffExecutesAndAnnotates(t *testing.T) {
 	binary := buildJaflow(t)
 	harness := testharness.NewHarness(t, "project", "session")

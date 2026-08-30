@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/jacazul-ai/jaflow/internal/config"
 	"github.com/jacazul-ai/jaflow/internal/storage/sqlite"
@@ -40,7 +42,11 @@ func (cmd *PlanCommand) Execute(args []string) error {
 	}
 
 	var previous string
-	for _, description := range args[1:] {
+	for _, rawDescription := range args[1:] {
+		description, mode, dueAt, err := parseTaskSpec(rawDescription)
+		if err != nil {
+			return err
+		}
 		var dependencies []string
 		if previous != "" {
 			dependencies = []string{previous}
@@ -48,6 +54,8 @@ func (cmd *PlanCommand) Execute(args []string) error {
 		created, err := store.CreateTask(context.Background(), task.CreateTaskInput{
 			InitiativeID: initiative.ID,
 			Description:  description,
+			Mode:         mode,
+			DueAt:        dueAt,
 			Dependencies: dependencies,
 		})
 		if err != nil {
@@ -57,4 +65,68 @@ func (cmd *PlanCommand) Execute(args []string) error {
 		previous = created.ID
 	}
 	return nil
+}
+
+func parseTaskSpec(raw string) (description string, mode string, dueAt string, err error) {
+	parts := strings.Split(raw, "|")
+	if len(parts) == 1 {
+		if strings.TrimSpace(parts[0]) == "" {
+			return "", "", "", fmt.Errorf("task description cannot be empty")
+		}
+		return strings.TrimSpace(parts[0]), "", "", nil
+	}
+
+	if isInteractionMode(parts[0]) {
+		if len(parts) < 2 || strings.TrimSpace(parts[1]) == "" {
+			return "", "", "", fmt.Errorf("task description is required in %q", raw)
+		}
+		description = strings.TrimSpace(parts[1])
+		mode = strings.ToUpper(strings.TrimSpace(parts[0]))
+		if len(parts) >= 4 {
+			dueAt = parts[3]
+		}
+	} else {
+		description = strings.TrimSpace(parts[0])
+		if len(parts) >= 3 {
+			dueAt = parts[2]
+		}
+	}
+	if description == "" {
+		return "", "", "", fmt.Errorf("task description cannot be empty")
+	}
+	dueAt, err = normalizeDueDate(dueAt)
+	if err != nil {
+		return "", "", "", err
+	}
+	return description, mode, dueAt, nil
+}
+
+func isInteractionMode(value string) bool {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "DESIGN", "SPIKE", "INVESTIGATE", "GUIDE", "EXECUTE", "REFINE", "TEST", "DEBUG", "REVIEW":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeDueDate(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	switch strings.ToLower(value) {
+	case "yesterday":
+		return today.AddDate(0, 0, -1).Format("2006-01-02"), nil
+	case "today":
+		return today.Format("2006-01-02"), nil
+	case "tomorrow":
+		return today.AddDate(0, 0, 1).Format("2006-01-02"), nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return "", fmt.Errorf("invalid due date %q; use YYYY-MM-DD, today, or tomorrow", value)
+	}
+	return parsed.Format("2006-01-02"), nil
 }

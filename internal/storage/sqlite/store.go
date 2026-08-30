@@ -111,6 +111,7 @@ func (s *Store) CreateTask(ctx context.Context, input task.CreateTaskInput) (tas
 		InitiativeID: input.InitiativeID,
 		Description:  input.Description,
 		Mode:         input.Mode,
+		DueAt:        input.DueAt,
 		Status:       task.Pending,
 		Dependencies: append([]string(nil), input.Dependencies...),
 	}
@@ -125,10 +126,10 @@ func (s *Store) CreateTask(ctx context.Context, input task.CreateTaskInput) (tas
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO tasks
 			(id, initiative_id, description, mode, status, outcome,
-			 external_ticket, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, '', '', ?, ?)
+			 external_ticket, due_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, '', '', ?, ?, ?)
 	`, created.ID, created.InitiativeID, created.Description, created.Mode,
-		created.Status, now, now); err != nil {
+		created.Status, created.DueAt, now, now); err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
 	}
 	for _, dependencyID := range created.Dependencies {
@@ -154,7 +155,7 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 	query := `
 		SELECT t.id, t.initiative_id, i.name, t.description, t.mode,
 		       t.status, t.outcome, t.external_ticket,
-		       t.started_at, t.completed_at, t.disposition
+		       t.started_at, t.completed_at, t.disposition, t.due_at
 		FROM tasks t
 		JOIN initiatives i ON i.id = t.initiative_id
 		WHERE i.project_id = ?
@@ -188,6 +189,7 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 			&current.StartedAt,
 			&current.CompletedAt,
 			&current.Disposition,
+			&current.DueAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}

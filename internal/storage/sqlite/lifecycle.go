@@ -25,7 +25,7 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (task.Task, error) {
 	err = s.db.QueryRowContext(ctx, `
 		SELECT t.id, t.initiative_id, i.name, t.description, t.mode,
 		       t.status, t.outcome, t.external_ticket,
-		       t.started_at, t.completed_at, t.disposition
+		       t.started_at, t.completed_at, t.disposition, t.due_at
 		FROM tasks t
 		JOIN initiatives i ON i.id = t.initiative_id
 		WHERE t.id = ?
@@ -41,6 +41,7 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (task.Task, error) {
 		&current.StartedAt,
 		&current.CompletedAt,
 		&current.Disposition,
+		&current.DueAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return task.Task{}, fmt.Errorf("task %q not found", taskID)

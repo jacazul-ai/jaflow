@@ -102,6 +102,9 @@ jaflow handoff <uuid> <message...>
 jaflow focus ind task <uuid>
 jaflow focus back
 jaflow session <list|show|resume|ack|dump|purge>
+jaflow active [initiative]
+jaflow blocked [initiative]
+jaflow overdue [initiative]
 ```
 
 `note` normalizes semantic aliases to uppercase kinds, `notes` exposes
