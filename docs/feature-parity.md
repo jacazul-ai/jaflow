@@ -73,6 +73,75 @@ The initial inventory identified 104 candidate core/runtime tests:
 - session list: 9
 - project identity: 4
 
+## Complete Reference Command Acceptance Matrix
+
+The parity target is the complete observable `tw-flow` command surface. This
+matrix is an inventory and acceptance contract, not a pre-filter for commands
+that are convenient to port. Every reference surface below requires a native
+implementation and contract coverage unless a deliberate incompatibility is
+later documented with evidence.
+
+| Surface | Reference contract | Native acceptance boundary | Reference evidence |
+|---|---|---|---|
+| `plan`, `initiative`, `ini` | Create an initiative and an ordered task chain; accept mode, tag, and optional due metadata; default to priority `M` without inventing a due date; support hyphenated names and short UUID output. | Persist the initiative and dependency chain in the native store, preserve task mode semantics, invalidate derived views, and keep full UUIDs as identity. | `flow_test.py` plan and cool-down coverage |
+| `plans`, `inis`, `initiatives` | List active initiatives by default; support `--all`, `--closed`, `--with-backlog`, and `--force`; aliases share the same behavior; cache keys are filter-specific. | Render the same lifecycle markers and counts, hide backlog by default, and keep each filter isolated in cache. | `flow_test.py`, `cache_test.py`, `test_backlog.py` |
+| `status` | Resolve the focused initiative when no filter is supplied; support pending-only and table views; show pending/completed tasks, focus, inherited context, tickets, mode alerts, and actionable restrictions. | Match output, ordering, exit behavior, inherited context, and cache signals without leaking another project or session. | `flow_test.py`, `cache_test.py` |
+| `ponder` | Render the project dashboard with tactical readout, interests, blocked/active counts, filters, backlog handling, recently closed history, and `--force`. | Produce the complete dashboard in one call, preserve project/session scope, and invalidate or bypass cache exactly as required. | `flow_test.py`, `cache_test.py`, `test_recently_closed.py` |
+| `next` | Select ready work, optionally constrained to an initiative or filter; never treat every `pending` task as executable; report when no task is ready. | Query native readiness, preserve initiative boundaries, display short UUIDs, and reject blocked candidates. | `flow_test.py`, `docs/focus-advance-i-d.md` |
+| `execute`, `outcome`, `done` | Start ready work, require an `OUTCOME` before completion, expose newly unblocked tasks, and preserve handoff/focus behavior. | Enforce lifecycle transitions atomically, keep blocked tasks unexecutable, emit actionable errors, and invalidate affected views. | `flow_test.py`, `test_execute_loop_control.py` |
+| `reopen`, `discard` | Reopen completed work; discard through the workflow boundary with archive movement and an auditable outcome. | Preserve historical annotations, enforce safe state transitions, and prevent direct unsafe deletion paths. | `flow_test.py`, `security_test.py` |
+| `handoff` | Start the target task when needed and add a signed `HANDOFF` annotation. | Preserve dependency readiness, task signatures, focus/session state, and cache invalidation. | `flow_test.py`, `test_task_signature.py` |
+| `amend`, `rename` | Amend description/ticket metadata; rename an initiative and synchronize task grouping, focus, interest state, and inherited references. | Keep completed-task safety rules, update all native references consistently, and provide an actionable validation error. | `flow_test.py` |
+| `note`, `notes`, `context`, `ticket` | Persist semantic annotations, list/delete timestamped notes, collect dependency-first context, and resolve direct or inherited tickets. | Keep annotation kinds, timestamps, signatures, inheritance order, UUID resolution, and ticket cache invalidation compatible. | `flow_test.py`, `test_task_signature.py` |
+| `focus` | Support global and independent plan/task focus, task stack/pop, interest add/remove/list, clear, back, aliases, and smart focus. | Scope anchors by project and session, select only valid ready work where execution is implied, and never cross initiative boundaries. | `flow_test.py`, `test_execute_loop_control.py` |
+| `session` | Support `list`, `show`, `resume`, `ack`, `dump`, and `purge`; track heartbeat age and current-session markers; preserve handoff lifecycle. | Persist native sessions separately per project/session, classify active/idle/orphan consistently, and require confirmation for purge. | `flow_test.py`, `test_session_list.py` |
+| `active`, `blocked`, `overdue`, `urgent`, `tree` | Report derived task views; mark urgency; show dependency tree; preserve status and dependency semantics. | Match filters, output, metadata mutation, and actionable failures while keeping blocked and ready states distinct. | `flow_test.py`, `flow.py` dispatch; add focused tests where absent |
+| `block`, `unblock`, `wait` | Add/remove dependency edges and set waiting dates through the workflow command boundary. | Validate UUIDs, prevent invalid or cross-project edges, preserve dependency readiness, and invalidate affected views. | `flow.py` dispatch; add focused contract tests |
+| `backlog`, `activate` | Hide or restore an initiative in dashboard views while preserving its tasks and recoverability. | Persist initiative backlog state, render markers, and invalidate only affected derived views. | `test_backlog.py` |
+| `cache` | Support `info`, `clear`, `clear status`, and `clear ponder`; maintain TTL signals, force refresh, filter-specific keys, selective invalidation, and session isolation. | Keep cache storage project/session scoped, remove only requested entries, and never expose stale cross-scope output. | `cache_test.py`, `test_execute_loop_control.py` |
+| `roadmap`, `ship` | Initialize a roadmap once, add/show phases, ship phase entries, and reject duplicate ledgers without creating ghost tasks. | Preserve roadmap history and initiative projection while enforcing the initialization guard and phase validation. | `test_roadmap_init_guard.py`, `flow_test.py` |
+| `commit` | Draft a conventional commit from focus, select `Refs` versus `Fixes`, and never stage or commit implicitly. | Render the repository-aware draft, use inherited tickets, preserve user confirmation gates, and exclude internal IDs. | `flow_test.py`, `test_execute_loop_control.py` |
+| `help` and aliases | Render usage, command guidance, prerequisites, effects, examples, and next actions for the complete command tree. | Keep registry metadata authoritative and ensure every exposed command is documented and routable. | `core_test.py`, native command registry |
+
+### Matrix-wide acceptance rules
+
+Every row is also subject to these rules:
+
+- Full UUIDs are the persisted identity; short UUIDs are presentation and
+  must be unambiguous at the command boundary.
+- Project, initiative, and session boundaries are hard isolation rules. A
+  command must not read, mutate, focus, or cache another scope's state.
+- `pending` is not the same as `ready`; dependency queries own readiness.
+- Errors go to the failure channel with a concrete `ACTION:`. Healthy checks
+  stay quiet unless the command is a report.
+- Cache behavior includes storage location, TTL, cache-hit signal, force
+  refresh, filter-specific keys, selective invalidation, and session isolation.
+- Completed-task mutation rules and `OUTCOME` completion gates remain
+  observable contracts. Notes may remain valid on completed tasks only where
+  the reference contract allows them.
+- The native SQLite store remains the workflow source of truth. Taskwarrior
+  compatibility belongs at an explicit migration boundary, not in normal
+  command execution.
+- Known reference defects are negative acceptance cases, not behavior to copy.
+  In particular, automatic focus advancement must never select a blocked task
+  merely because its status is `pending`.
+
+### Inventory completion rule
+
+The design slice is complete when every command and alias in this matrix has
+one of the following concrete outcomes:
+
+1. a native contract test and implementation;
+2. a recorded failing parity test with an assigned implementation slice; or
+3. an explicitly documented incompatibility backed by evidence and user
+   confirmation.
+
+A command is not considered out of scope merely because the initial native
+registry does not expose it. Low-hanging structural improvements may be made
+while implementing the matrix when they preserve the observable contract,
+carry appropriate tests, and are reported to the user before they expand the
+change boundary.
+
 ## Residual Context Contract
 
 The remaining context slice follows the reference `tw-flow` behavior without
