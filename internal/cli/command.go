@@ -503,6 +503,21 @@ var helpEntries = []helpEntry{
 		examples: []string{"jaflow wait 57c3fc80 tomorrow"},
 		next:     "Run 'jaflow next' after the wait date to inspect readiness.",
 	},
+	{
+		name:    "cache",
+		summary: "Inspect or clear derived output cache",
+		usage:   "jaflow cache [info|clear [status|ponder]]",
+		role:    "Use this to inspect cache entries or force a clean report boundary.",
+		effects: []string{
+			"Reports entries for the current project and session.",
+			"Clears all cache entries or only status/ponder entries when scoped.",
+		},
+		examples: []string{
+			"jaflow cache info",
+			"jaflow cache clear status",
+		},
+		next: "Run 'jaflow status --force' or 'jaflow ponder --force' for a direct refresh.",
+	},
 }
 
 func findHelpEntry(name string) (helpEntry, bool) {

@@ -35,9 +35,9 @@ func (s *Store) LoadFocus(ctx context.Context, projectID string, sessionID strin
 		return task.FocusState{}, errors.New("project ID and session ID are required")
 	}
 
-	initiativeID, focusedTaskID, stackJSON, err := s.loadFocusRow(ctx, projectID, sessionID)
+	initiativeID, focusedTaskID, stackJSON, interestsJSON, err := s.loadFocusRow(ctx, projectID, sessionID)
 	if errors.Is(err, sql.ErrNoRows) && sessionID != "global" {
-		initiativeID, focusedTaskID, stackJSON, err = s.loadFocusRow(ctx, projectID, "global")
+		initiativeID, focusedTaskID, stackJSON, interestsJSON, err = s.loadFocusRow(ctx, projectID, "global")
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return task.FocusState{
@@ -51,11 +51,12 @@ func (s *Store) LoadFocus(ctx context.Context, projectID string, sessionID strin
 	}
 
 	state := task.FocusState{
-		ProjectID:     projectID,
-		SessionID:     sessionID,
-		InitiativeID:  initiativeID,
-		FocusedTaskID: focusedTaskID,
-		TaskStack:     []task.FocusEntry{},
+		ProjectID:       projectID,
+		SessionID:       sessionID,
+		InitiativeID:    initiativeID,
+		FocusedTaskID:   focusedTaskID,
+		TaskStack:       []task.FocusEntry{},
+		PlansOfInterest: []string{},
 	}
 	if err := json.Unmarshal([]byte(stackJSON), &state.TaskStack); err != nil {
 		return task.FocusState{}, fmt.Errorf("decode focus stack: %w", err)
@@ -63,19 +64,27 @@ func (s *Store) LoadFocus(ctx context.Context, projectID string, sessionID strin
 	if state.TaskStack == nil {
 		state.TaskStack = []task.FocusEntry{}
 	}
+	if err := json.Unmarshal([]byte(interestsJSON), &state.PlansOfInterest); err != nil {
+		return task.FocusState{}, fmt.Errorf("decode focus interests: %w", err)
+	}
+	if state.PlansOfInterest == nil {
+		state.PlansOfInterest = []string{}
+	}
 	return state, nil
 }
 
-func (s *Store) loadFocusRow(ctx context.Context, projectID string, sessionID string) (string, string, string, error) {
+func (s *Store) loadFocusRow(ctx context.Context, projectID string, sessionID string) (string, string, string, string, error) {
 	var initiativeID string
 	var focusedTaskID string
 	var stackJSON string
+	var interestsJSON string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT focused_initiative_id, focused_task_id, task_stack_json
+		SELECT focused_initiative_id, focused_task_id, task_stack_json,
+		       plans_of_interest_json
 		FROM sessions
 		WHERE project_id = ? AND session_id = ?
-	`, projectID, sessionID).Scan(&initiativeID, &focusedTaskID, &stackJSON)
-	return initiativeID, focusedTaskID, stackJSON, err
+	`, projectID, sessionID).Scan(&initiativeID, &focusedTaskID, &stackJSON, &interestsJSON)
+	return initiativeID, focusedTaskID, stackJSON, interestsJSON, err
 }
 
 // SaveFocus persists the project session anchor and task stack.
@@ -87,18 +96,23 @@ func (s *Store) SaveFocus(ctx context.Context, state task.FocusState) error {
 	if err != nil {
 		return fmt.Errorf("encode focus stack: %w", err)
 	}
+	interestsJSON, err := json.Marshal(state.PlansOfInterest)
+	if err != nil {
+		return fmt.Errorf("encode focus interests: %w", err)
+	}
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO sessions
 			(project_id, session_id, focused_initiative_id, focused_task_id,
-			 task_stack_json, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+			 task_stack_json, plans_of_interest_json, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (project_id, session_id) DO UPDATE SET
 			focused_initiative_id = excluded.focused_initiative_id,
 			focused_task_id = excluded.focused_task_id,
 			task_stack_json = excluded.task_stack_json,
+			plans_of_interest_json = excluded.plans_of_interest_json,
 			updated_at = excluded.updated_at
 	`, state.ProjectID, state.SessionID, state.InitiativeID, state.FocusedTaskID,
-		string(stackJSON), timestamp())
+		string(stackJSON), string(interestsJSON), timestamp())
 	if err != nil {
 		return fmt.Errorf("save focus: %w", err)
 	}
@@ -212,6 +226,22 @@ func (s *Store) GetCache(ctx context.Context, projectID string, sessionID string
 		return "", false, nil
 	}
 	return output, true, nil
+}
+
+// CacheEntryCount returns the number of cache entries for one session.
+func (s *Store) CacheEntryCount(ctx context.Context, projectID string, sessionID string) (int, error) {
+	if projectID == "" || sessionID == "" {
+		return 0, errors.New("project ID and session ID are required")
+	}
+	var count int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM cache_entries
+		WHERE project_id = ? AND session_id = ?
+	`, projectID, sessionID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count cache entries: %w", err)
+	}
+	return count, nil
 }
 
 // ClearCache removes cache entries matching a key prefix for one session.

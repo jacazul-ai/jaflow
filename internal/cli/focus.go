@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jacazul-ai/jaflow/internal/config"
@@ -11,14 +12,15 @@ import (
 
 // FocusCommand groups focus navigation commands.
 type FocusCommand struct {
-	Show    FocusShowCommand        `command:"show" description:"Show the current focus"`
-	Plan    FocusPlanCommand        `command:"plan" description:"Focus an initiative"`
-	Task    FocusTaskCommand        `command:"task" description:"Focus a task"`
-	Pop     FocusPopCommand         `command:"pop" description:"Pop the current task focus"`
-	Clear   FocusClearCommand       `command:"clear" description:"Clear the session focus"`
-	Back    FocusBackCommand        `command:"back" description:"Return to global focus"`
-	Ind     FocusIndependentCommand `command:"ind" description:"Use independent session focus"`
-	appOpts *config.AppOptions
+	Show     FocusShowCommand        `command:"show" description:"Show the current focus"`
+	Plan     FocusPlanCommand        `command:"plan" description:"Focus an initiative"`
+	Task     FocusTaskCommand        `command:"task" description:"Focus a task"`
+	Pop      FocusPopCommand         `command:"pop" description:"Pop the current task focus"`
+	Clear    FocusClearCommand       `command:"clear" description:"Clear the session focus"`
+	Back     FocusBackCommand        `command:"back" description:"Return to global focus"`
+	Ind      FocusIndependentCommand `command:"ind" description:"Use independent session focus"`
+	Interest FocusInterestCommand    `command:"interest" description:"Manage plans of interest"`
+	appOpts  *config.AppOptions
 }
 
 // SetAppOptions supplies project options to all focus subcommands.
@@ -31,6 +33,7 @@ func (cmd *FocusCommand) SetAppOptions(opts *config.AppOptions) {
 	cmd.Clear.SetAppOptions(opts)
 	cmd.Back.SetAppOptions(opts)
 	cmd.Ind.SetAppOptions(opts)
+	cmd.Interest.SetAppOptions(opts)
 }
 
 // Execute requires a focus subcommand so the agent intent is explicit.
@@ -59,6 +62,89 @@ func (cmd *FocusIndependentCommand) Execute(args []string) error {
 		return fmt.Errorf("focus ind requires plan or task\nACTION: Run 'jaflow focus ind plan <name>' or 'jaflow focus ind task <uuid>'.")
 	}
 	return cmd.Plan.execute(args, true)
+}
+
+// FocusInterestCommand manages the initiatives shown by dashboard views.
+type FocusInterestCommand struct {
+	Args    []string `positional-args:"yes"`
+	appOpts *config.AppOptions
+}
+
+// SetAppOptions supplies project-scoped runtime options to the command.
+func (cmd *FocusInterestCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+}
+
+// Execute adds, removes, or lists plans of interest for the current session.
+func (cmd *FocusInterestCommand) Execute(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("focus interest requires add, remove, or list\nACTION: Run 'jaflow help focus'.")
+	}
+	if args[0] != "list" && len(args) != 2 {
+		return fmt.Errorf("focus interest %s requires an initiative name\nACTION: Run 'jaflow focus interest [add|remove] <initiative>'.", args[0])
+	}
+	if args[0] == "list" && len(args) != 1 {
+		return fmt.Errorf("focus interest list accepts no arguments")
+	}
+	if args[0] != "add" && args[0] != "remove" && args[0] != "list" {
+		return fmt.Errorf("unknown focus interest action %q\nACTION: Use add, remove, or list.", args[0])
+	}
+
+	store, err := openStore(cmd.appOpts)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	state, err := store.LoadFocus(ctx, cmd.appOpts.ProjectID, cmd.appOpts.SessionID)
+	if err != nil {
+		return err
+	}
+	if args[0] == "list" {
+		fmt.Println("PLANS OF INTEREST:")
+		for _, name := range state.PlansOfInterest {
+			fmt.Println(name)
+		}
+		if len(state.PlansOfInterest) == 0 {
+			fmt.Println("(empty)")
+		}
+		return nil
+	}
+
+	name := strings.TrimSpace(args[1])
+	if name == "" {
+		return fmt.Errorf("initiative name cannot be empty")
+	}
+	if args[0] == "add" {
+		for _, current := range state.PlansOfInterest {
+			if current == name {
+				fmt.Printf("Plan already in interests: %s\n", name)
+				return nil
+			}
+		}
+		state.PlansOfInterest = append(state.PlansOfInterest, name)
+		sort.Strings(state.PlansOfInterest)
+	} else {
+		filtered := state.PlansOfInterest[:0]
+		for _, current := range state.PlansOfInterest {
+			if current != name {
+				filtered = append(filtered, current)
+			}
+		}
+		state.PlansOfInterest = filtered
+	}
+	if err := store.SaveFocus(ctx, state); err != nil {
+		return err
+	}
+	if err := store.ClearCache(ctx, cmd.appOpts.ProjectID, cmd.appOpts.SessionID, ""); err != nil {
+		return err
+	}
+	if args[0] == "add" {
+		fmt.Printf("Added plan to interests: %s\n", name)
+	} else {
+		fmt.Printf("Removed plan from interests: %s\n", name)
+	}
+	return nil
 }
 
 // FocusShowCommand displays the current session anchor.

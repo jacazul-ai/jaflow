@@ -183,8 +183,8 @@ func TestGooseAdoptsLegacyV1Schema(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read adopted Goose version: %v", err)
 	}
-	if version != 7 {
-		t.Fatalf("adopted Goose version = %d, want 7", version)
+	if version != 8 {
+		t.Fatalf("adopted Goose version = %d, want 8", version)
 	}
 	for _, column := range []string{"started_at", "completed_at", "disposition", "priority", "urgency", "wait_until"} {
 		var count int
@@ -236,8 +236,8 @@ func TestOpenAppliesAllGooseMigrations(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read goose version: %v", err)
 	}
-	if version != 7 {
-		t.Fatalf("goose version = %d, want 7", version)
+	if version != 8 {
+		t.Fatalf("goose version = %d, want 8", version)
 	}
 	var sessionNotes int
 	if err := db.QueryRow(

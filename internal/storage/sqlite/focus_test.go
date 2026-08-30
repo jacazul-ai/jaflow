@@ -20,6 +20,7 @@ func TestFocusIsolatedBySession(t *testing.T) {
 			TaskID:       "task-1",
 			InitiativeID: "initiative-1",
 		}},
+		PlansOfInterest: []string{"initiative-1"},
 	}
 	if err := store.SaveFocus(ctx, state); err != nil {
 		t.Fatalf("save focus: %v", err)
@@ -31,6 +32,9 @@ func TestFocusIsolatedBySession(t *testing.T) {
 	}
 	if loaded.FocusedTaskID != state.FocusedTaskID || len(loaded.TaskStack) != 1 {
 		t.Fatalf("loaded focus = %#v, want %#v", loaded, state)
+	}
+	if len(loaded.PlansOfInterest) != 1 || loaded.PlansOfInterest[0] != "initiative-1" {
+		t.Fatalf("loaded interests = %#v, want initiative-1", loaded.PlansOfInterest)
 	}
 
 	other, err := store.LoadFocus(ctx, "project-alpha", "session-two")
