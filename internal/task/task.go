@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -13,6 +14,63 @@ const (
 	Active    Status = "active"
 	Completed Status = "completed"
 )
+
+// TaskMode identifies the workflow mode of a task.
+type TaskMode uint16
+
+const (
+	ModeUnspecified TaskMode = 0
+	ModeDesign      TaskMode = 1
+	ModeSpike       TaskMode = 2
+	ModeInvestigate TaskMode = 3
+	ModeGuide       TaskMode = 4
+	ModeExecute     TaskMode = 5
+	ModeRefine      TaskMode = 6
+	ModeTest        TaskMode = 7
+	ModeDebug       TaskMode = 8
+	ModeReview      TaskMode = 9
+)
+
+var taskModeNames = map[TaskMode]string{
+	ModeUnspecified: "UNSPECIFIED",
+	ModeDesign:      "DESIGN",
+	ModeSpike:       "SPIKE",
+	ModeInvestigate: "INVESTIGATE",
+	ModeGuide:       "GUIDE",
+	ModeExecute:     "EXECUTE",
+	ModeRefine:      "REFINE",
+	ModeTest:        "TEST",
+	ModeDebug:       "DEBUG",
+	ModeReview:      "REVIEW",
+}
+
+// String returns the stable catalog name for a task mode.
+func (mode TaskMode) String() string {
+	if name, ok := taskModeNames[mode]; ok {
+		return name
+	}
+	return "UNKNOWN"
+}
+
+// Valid reports whether mode is part of the built-in task mode catalog.
+func (mode TaskMode) Valid() bool {
+	_, ok := taskModeNames[mode]
+	return ok
+}
+
+// ParseTaskMode converts a catalog name to its stable task mode code.
+func ParseTaskMode(value string) (TaskMode, error) {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	if value == "" {
+		return ModeUnspecified, nil
+	}
+	for mode, name := range taskModeNames {
+		if name == value {
+			return mode, nil
+		}
+	}
+	return ModeUnspecified, fmt.Errorf("invalid task mode %q", value)
+}
 
 // Annotation is a structured piece of durable workflow context.
 type Annotation struct {
@@ -92,7 +150,7 @@ type Task struct {
 	InitiativeID   string       `json:"initiative_id"`
 	InitiativeName string       `json:"initiative_name"`
 	Description    string       `json:"description"`
-	Mode           string       `json:"mode,omitempty"`
+	Mode           TaskMode     `json:"mode,omitempty"`
 	Status         Status       `json:"status"`
 	Outcome        string       `json:"outcome,omitempty"`
 	ExternalTicket string       `json:"external_ticket,omitempty"`
@@ -165,7 +223,7 @@ type FocusEntry struct {
 type CreateTaskInput struct {
 	InitiativeID string
 	Description  string
-	Mode         string
+	Mode         TaskMode
 	DueAt        string
 	Dependencies []string
 

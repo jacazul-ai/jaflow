@@ -105,6 +105,9 @@ func (s *Store) CreateTask(ctx context.Context, input task.CreateTaskInput) (tas
 	if err := s.requireDependencies(ctx, input.Dependencies); err != nil {
 		return task.Task{}, err
 	}
+	if !input.Mode.Valid() {
+		return task.Task{}, fmt.Errorf("invalid task mode %d", input.Mode)
+	}
 
 	created := task.Task{
 		ID:           newUUID(),
@@ -126,10 +129,10 @@ func (s *Store) CreateTask(ctx context.Context, input task.CreateTaskInput) (tas
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO tasks
 			(id, initiative_id, description, mode, status, outcome,
-			 external_ticket, due_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, '', '', ?, ?, ?)
-	`, created.ID, created.InitiativeID, created.Description, created.Mode,
-		created.Status, created.DueAt, now, now); err != nil {
+			 external_ticket, due_at, task_mode_code, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, '', '', ?, ?, ?, ?)
+	`, created.ID, created.InitiativeID, created.Description, legacyModeName(created.Mode),
+		created.Status, created.DueAt, created.Mode, now, now); err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
 	}
 	for _, dependencyID := range created.Dependencies {
@@ -153,9 +156,10 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 	}
 
 	query := `
-		SELECT t.id, t.initiative_id, i.name, t.description, t.mode,
+		SELECT t.id, t.initiative_id, i.name, t.description,
 		       t.status, t.outcome, t.external_ticket,
-		       t.started_at, t.completed_at, t.disposition, t.due_at
+		       t.started_at, t.completed_at, t.disposition, t.due_at,
+		       t.task_mode_code
 		FROM tasks t
 		JOIN initiatives i ON i.id = t.initiative_id
 		WHERE i.project_id = ?
@@ -177,12 +181,12 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 	for rows.Next() {
 		var current task.Task
 		var status string
+		var modeCode int64
 		if err := rows.Scan(
 			&current.ID,
 			&current.InitiativeID,
 			&current.InitiativeName,
 			&current.Description,
-			&current.Mode,
 			&status,
 			&current.Outcome,
 			&current.ExternalTicket,
@@ -190,10 +194,12 @@ func (s *Store) ListTasks(ctx context.Context, projectID string, initiativeName 
 			&current.CompletedAt,
 			&current.Disposition,
 			&current.DueAt,
+			&modeCode,
 		); err != nil {
 			return nil, fmt.Errorf("scan task: %w", err)
 		}
 		current.Status = task.Status(status)
+		current.Mode = task.TaskMode(modeCode)
 		tasks = append(tasks, current)
 	}
 	if err := rows.Err(); err != nil {
@@ -342,6 +348,13 @@ func validateTask(input task.CreateTaskInput) error {
 		return errors.New("task description is required")
 	}
 	return nil
+}
+
+func legacyModeName(mode task.TaskMode) string {
+	if mode == task.ModeUnspecified {
+		return ""
+	}
+	return mode.String()
 }
 
 func timestamp() string {

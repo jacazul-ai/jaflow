@@ -70,21 +70,21 @@ func (cmd *PlanCommand) Execute(args []string) error {
 	return nil
 }
 
-func parseTaskSpec(raw string) (description string, mode string, dueAt string, err error) {
+func parseTaskSpec(raw string) (description string, mode task.TaskMode, dueAt string, err error) {
 	parts := strings.Split(raw, "|")
 	if len(parts) == 1 {
 		if strings.TrimSpace(parts[0]) == "" {
-			return "", "", "", fmt.Errorf("task description cannot be empty")
+			return "", task.ModeUnspecified, "", fmt.Errorf("task description cannot be empty")
 		}
-		return strings.TrimSpace(parts[0]), "", "", nil
+		return strings.TrimSpace(parts[0]), task.ModeUnspecified, "", nil
 	}
 
 	if isInteractionMode(parts[0]) {
 		if len(parts) < 2 || strings.TrimSpace(parts[1]) == "" {
-			return "", "", "", fmt.Errorf("task description is required in %q", raw)
+			return "", task.ModeUnspecified, "", fmt.Errorf("task description is required in %q", raw)
 		}
 		description = strings.TrimSpace(parts[1])
-		mode = strings.ToUpper(strings.TrimSpace(parts[0]))
+		mode, err = task.ParseTaskMode(parts[0])
 		if len(parts) >= 4 {
 			dueAt = parts[3]
 		}
@@ -95,22 +95,18 @@ func parseTaskSpec(raw string) (description string, mode string, dueAt string, e
 		}
 	}
 	if description == "" {
-		return "", "", "", fmt.Errorf("task description cannot be empty")
+		return "", task.ModeUnspecified, "", fmt.Errorf("task description cannot be empty")
 	}
 	dueAt, err = normalizeDueDate(dueAt)
 	if err != nil {
-		return "", "", "", err
+		return "", task.ModeUnspecified, "", err
 	}
 	return description, mode, dueAt, nil
 }
 
 func isInteractionMode(value string) bool {
-	switch strings.ToUpper(strings.TrimSpace(value)) {
-	case "DESIGN", "SPIKE", "INVESTIGATE", "GUIDE", "EXECUTE", "REFINE", "TEST", "DEBUG", "REVIEW":
-		return true
-	default:
-		return false
-	}
+	mode, err := task.ParseTaskMode(value)
+	return err == nil && mode != task.ModeUnspecified
 }
 
 func normalizeDueDate(value string) (string, error) {

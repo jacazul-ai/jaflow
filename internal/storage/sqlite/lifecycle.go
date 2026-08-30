@@ -22,9 +22,10 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (task.Task, error) {
 
 	var current task.Task
 	var status string
+	var modeCode int64
 	err = s.db.QueryRowContext(ctx, `
-		SELECT t.id, t.initiative_id, i.name, t.description, t.mode,
-		       t.status, t.outcome, t.external_ticket,
+		SELECT t.id, t.initiative_id, i.name, t.description,
+		       t.task_mode_code, t.status, t.outcome, t.external_ticket,
 		       t.started_at, t.completed_at, t.disposition, t.due_at
 		FROM tasks t
 		JOIN initiatives i ON i.id = t.initiative_id
@@ -34,7 +35,7 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (task.Task, error) {
 		&current.InitiativeID,
 		&current.InitiativeName,
 		&current.Description,
-		&current.Mode,
+		&modeCode,
 		&status,
 		&current.Outcome,
 		&current.ExternalTicket,
@@ -49,6 +50,7 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (task.Task, error) {
 	if err != nil {
 		return task.Task{}, fmt.Errorf("read task: %w", err)
 	}
+	current.Mode = task.TaskMode(modeCode)
 	current.Status = task.Status(status)
 	current.Dependencies, err = s.dependencies(ctx, current.ID)
 	if err != nil {

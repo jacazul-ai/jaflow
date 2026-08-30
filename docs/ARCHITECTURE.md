@@ -63,7 +63,7 @@ storage files directly.
 workflow operations rather than raw Taskwarrior binary commands.
 
 The current implementation target is the official `sqlok`-backed local
-store:
+store and native Jaflow source of truth:
 
 - one project-direct directory at
   `$JACAZUL_HOME/jaflow/<PROJECT_ID>/`;
@@ -73,7 +73,13 @@ store:
   `sqlok`;
 - no dependency on the Taskwarrior binary for normal operation;
 - independent from process-global state through injected paths and
-  configuration.
+  configuration;
+- independent from the Taskwarrior binary and its runtime data.
+
+Taskwarrior compatibility is limited to an optional legacy import/export
+adapter. It belongs to the separate migration boundary and must never become
+the normal local backend, a server dependency, or the source of truth for
+Jaflow state.
 
 A future `ServerTaskBackend` may implement the same behavior contract for
 shared team coordination. That backend is not part of the current parity
@@ -98,8 +104,9 @@ external GitHub credentials.
 
 Schema evolution uses Pressly Goose as an embedded library, not as a CLI
 subprocess. The SQLite store supplies an `embed.FS` migration provider with
-five ordered migration steps: the initial schema, task lifecycle columns,
-the roadmap ledger, native session notes, and task due dates. The provider uses its own version
+six ordered migration steps: the initial schema, task lifecycle columns,
+the roadmap ledger, native session notes, task due dates, and the task mode
+catalog. The provider uses its own version
 table and keeps the application silent by default. The task lifecycle
 migration is a Go migration so it can safely add missing columns to databases
 created by the earlier migration runner.
@@ -141,7 +148,7 @@ The project has two real storage directions:
 ```text
 ProjectStore
 ├── sqlokStore               # official local implementation
-├── TaskwarriorAdapter       # compatibility/import-export boundary
+├── LegacyTaskwarriorAdapter # optional migration/import boundary
 └── ServerTaskBackend        # future shared implementation
 ```
 
@@ -159,8 +166,8 @@ Behavior-focused contracts may be split when their consumers differ:
 - output cache and invalidation.
 
 Do not create interfaces solely for hypothetical implementations. Keep the
-local store independent from the CLI so the Taskwarrior adapter and future
-server backend can be introduced without changing command behavior.
+local store independent from the CLI so the optional legacy adapter and future
+server backend can be introduced without changing native command behavior.
 
 Required cross-backend invariants include:
 

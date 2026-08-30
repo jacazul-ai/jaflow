@@ -19,7 +19,8 @@ The local source of truth is a native SQLite database with one physical file
 per canonical `PROJECT_ID`. An initiative/plan is a first-class record; a
 Taskwarrior `project` value is only a compatibility projection or migration
 key. Sessions and cache records are scoped by `session_id` inside the owning
-project database.
+project database. Taskwarrior is not a runtime dependency; it is retained only
+as an optional legacy import/export boundary for migration.
 
 The in-repository `internal/testharness` owns sandboxed database fixtures.
 Every parity slice must test its behavior locally and must prove that separate
@@ -111,6 +112,11 @@ jaflow overdue [initiative]
 creation timestamps for deletion, and `context` renders direct plus inherited
 annotations. These commands operate on the native SQLite store; they do not
 require the Taskwarrior binary.
+
+Task interaction modes are catalog values in `task_modes`. Tasks persist a
+stable `task_mode_code` foreign key; the CLI and API translate it to semantic
+names such as `DESIGN` and `EXECUTE` at the boundary. The legacy text mode
+column remains only for migration compatibility.
 
 This contract is intentionally expressed at the workflow/store boundary so
 future Taskwarrior import or broker adapters can project the same behavior

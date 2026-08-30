@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jacazul-ai/jaflow/internal/config"
+	"github.com/jacazul-ai/jaflow/internal/task"
 )
 
 // CommitCommand renders a conventional commit draft without executing Git.
@@ -61,11 +62,11 @@ func (cmd *CommitCommand) Execute(args []string) error {
 	return nil
 }
 
-func commitPrefix(description string, mode string) string {
+func commitPrefix(description string, mode task.TaskMode) string {
 	if strings.Contains(description, "[DEBUG]") || strings.Contains(description, "[BUG]") {
 		return "fix"
 	}
-	if strings.Contains(description, "[TEST]") || mode == "TEST" {
+	if strings.Contains(description, "[TEST]") || mode == task.ModeTest {
 		return "test"
 	}
 	if strings.Contains(description, "[DESIGN]") || strings.Contains(description, "[SPIKE]") {

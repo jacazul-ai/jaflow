@@ -28,7 +28,7 @@ func TestStorePersistsInitiativesTasksAndDependencies(t *testing.T) {
 	first, err := store.CreateTask(ctx, task.CreateTaskInput{
 		InitiativeID: initiative.ID,
 		Description:  "Define the schema",
-		Mode:         "DESIGN",
+		Mode:         task.ModeDesign,
 	})
 	if err != nil {
 		t.Fatalf("create first task: %v", err)
@@ -36,7 +36,7 @@ func TestStorePersistsInitiativesTasksAndDependencies(t *testing.T) {
 	second, err := store.CreateTask(ctx, task.CreateTaskInput{
 		InitiativeID: initiative.ID,
 		Description:  "Implement the store",
-		Mode:         "EXECUTE",
+		Mode:         task.ModeExecute,
 		Dependencies: []string{first.ID},
 	})
 	if err != nil {
@@ -56,11 +56,61 @@ func TestStorePersistsInitiativesTasksAndDependencies(t *testing.T) {
 	if tasks[1].InitiativeID != initiative.ID {
 		t.Fatalf("second task initiative = %q, want %q", tasks[1].InitiativeID, initiative.ID)
 	}
+	if tasks[1].Mode != task.ModeExecute {
+		t.Fatalf("second task mode = %d, want %d", tasks[1].Mode, task.ModeExecute)
+	}
 	if len(tasks[1].Dependencies) != 1 || tasks[1].Dependencies[0] != first.ID {
 		t.Fatalf("second task dependencies = %#v, want [%q]", tasks[1].Dependencies, first.ID)
 	}
 	if tasks[1].Status != task.Pending {
 		t.Fatalf("second task status = %q, want %q", tasks[1].Status, task.Pending)
+	}
+}
+
+func TestTaskModeCatalogPersistsStableCodes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "task-modes.sqlite3")
+	store := openStore(t, path)
+	initiative, err := store.GetOrCreateInitiative(context.Background(), task.CreateInitiativeInput{
+		ProjectID: "project",
+		Name:      "modes",
+	})
+	if err != nil {
+		t.Fatalf("create initiative: %v", err)
+	}
+	created, err := store.CreateTask(context.Background(), task.CreateTaskInput{
+		InitiativeID: initiative.ID,
+		Description:  "Execute the work",
+		Mode:         task.ModeExecute,
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open task mode database: %v", err)
+	}
+	defer db.Close()
+	var modeName string
+	if err := db.QueryRow(
+		"SELECT name FROM task_modes WHERE code = ?", int(task.ModeExecute),
+	).Scan(&modeName); err != nil {
+		t.Fatalf("read task mode catalog: %v", err)
+	}
+	if modeName != "EXECUTE" {
+		t.Fatalf("task mode name = %q, want EXECUTE", modeName)
+	}
+	var modeCode int
+	if err := db.QueryRow(
+		"SELECT task_mode_code FROM tasks WHERE id = ?", created.ID,
+	).Scan(&modeCode); err != nil {
+		t.Fatalf("read task mode code: %v", err)
+	}
+	if modeCode != int(task.ModeExecute) {
+		t.Fatalf("task mode code = %d, want %d", modeCode, task.ModeExecute)
 	}
 }
 
@@ -98,6 +148,12 @@ func TestGooseAdoptsLegacyV1Schema(t *testing.T) {
 		)`,
 		`INSERT INTO schema_migrations (version, applied_at)
 			VALUES (1, '2026-01-01T00:00:00Z')`,
+		`INSERT INTO initiatives
+			(id, project_id, name, status, external_ticket, created_at, updated_at)
+			VALUES ('legacy-initiative', 'project', 'legacy', 'active', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+		`INSERT INTO tasks
+			(id, initiative_id, description, mode, status, outcome, external_ticket, created_at, updated_at)
+			VALUES ('legacy-task', 'legacy-initiative', 'Legacy execute task', 'EXECUTE', 'pending', '', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
 	} {
 		if _, err := db.Exec(statement); err != nil {
 			db.Close()
@@ -127,8 +183,8 @@ func TestGooseAdoptsLegacyV1Schema(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read adopted Goose version: %v", err)
 	}
-	if version != 5 {
-		t.Fatalf("adopted Goose version = %d, want 5", version)
+	if version != 6 {
+		t.Fatalf("adopted Goose version = %d, want 6", version)
 	}
 	for _, column := range []string{"started_at", "completed_at", "disposition"} {
 		var count int
@@ -140,6 +196,15 @@ func TestGooseAdoptsLegacyV1Schema(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("legacy column %s was not added", column)
 		}
+	}
+	var modeCode int
+	if err := adopted.QueryRow(
+		"SELECT task_mode_code FROM tasks WHERE id = 'legacy-task'",
+	).Scan(&modeCode); err != nil {
+		t.Fatalf("read migrated legacy task mode: %v", err)
+	}
+	if modeCode != int(task.ModeExecute) {
+		t.Fatalf("migrated legacy task mode = %d, want %d", modeCode, task.ModeExecute)
 	}
 }
 
@@ -162,8 +227,8 @@ func TestOpenAppliesAllGooseMigrations(t *testing.T) {
 	).Scan(&version); err != nil {
 		t.Fatalf("read goose version: %v", err)
 	}
-	if version != 5 {
-		t.Fatalf("goose version = %d, want 5", version)
+	if version != 6 {
+		t.Fatalf("goose version = %d, want 6", version)
 	}
 	var sessionNotes int
 	if err := db.QueryRow(
