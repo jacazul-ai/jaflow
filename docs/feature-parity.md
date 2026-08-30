@@ -143,6 +143,15 @@ fixtures, a meaningful oracle, and fails under a relevant mutation.
 Error and output contracts are part of parity: failures must guide the next
 valid action, while healthy verification must not become noisy protocol dump.
 
+## Legacy Backend Resolution
+
+Jaflow commands always use the native project SQLite database. The legacy
+`TASKDATA`/`--taskdata` value may remain available as migration context, but it
+must not select the runtime backend or invoke the Taskwarrior binary. The
+legacy adapter belongs to the separate Taskwarrior-to-Jaflow migration
+initiative and is not part of normal task creation, lifecycle, context, cache,
+or dashboard execution.
+
 ## Implementation Backlog
 
 Implement in this order, keeping one command boundary per feature slice and
