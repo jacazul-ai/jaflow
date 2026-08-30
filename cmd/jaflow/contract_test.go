@@ -50,12 +50,20 @@ func TestPlanStateIsIsolatedByProject(t *testing.T) {
 		t.Fatalf("alpha output = %q, want task description", firstOutput)
 	}
 
-	secondOutput, err := runJaflow(t, binary, second, "status")
+	secondOutput, err := runJaflow(t, binary, second, "plan", "beta", "Beta task")
 	if err != nil {
-		t.Fatalf("read beta status: %v\n%s", err, secondOutput)
+		t.Fatalf("create beta plan: %v\n%s", err, secondOutput)
 	}
-	if strings.Contains(secondOutput, "Alpha task") {
-		t.Fatalf("project beta observed project alpha state: %q", secondOutput)
+	if !strings.Contains(secondOutput, "Beta task") || strings.Contains(secondOutput, "Alpha task") {
+		t.Fatalf("beta output crossed project boundary: %q", secondOutput)
+	}
+
+	firstOutput, err = runJaflow(t, binary, first, "status")
+	if err != nil {
+		t.Fatalf("read alpha status: %v\n%s", err, firstOutput)
+	}
+	if !strings.Contains(firstOutput, "Alpha task") || strings.Contains(firstOutput, "Beta task") {
+		t.Fatalf("alpha output crossed project boundary: %q", firstOutput)
 	}
 }
 

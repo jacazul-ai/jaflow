@@ -58,6 +58,40 @@ func TestFakeCommandUsesIsolatedPath(t *testing.T) {
 	}
 }
 
+func TestFakeCommandsResolveOnlyThroughIsolatedPath(t *testing.T) {
+	harness := NewHarness(t, "project-alpha", "session")
+	harness.FakeCommand(t, "fake-inner", "#!/bin/sh\nprintf 'inner\\n'\n")
+	harness.FakeCommand(t, "fake-outer", "#!/bin/sh\nfake-inner\n")
+
+	output, err := harness.RunCommand(context.Background(), "fake-outer")
+	if err != nil {
+		t.Fatalf("run fake outer command: %v", err)
+	}
+	if output != "inner\n" {
+		t.Fatalf("nested fake output = %q, want inner output", output)
+	}
+}
+
+func TestHarnessCommandEnvironmentUsesFixtureValues(t *testing.T) {
+	harness := NewHarness(t, "project-alpha", "session")
+	harness.FakeCommand(t, "print-project", "#!/bin/sh\nprintf '%s\\n' \"$PROJECT_ID\"\n")
+
+	output, err := harness.RunCommand(context.Background(), "print-project")
+	if err != nil {
+		t.Fatalf("run environment command: %v", err)
+	}
+	if output != "project-alpha\n" {
+		t.Fatalf("project ID = %q, want fixture value", output)
+	}
+}
+
+func TestWriteFileRejectsPathEscape(t *testing.T) {
+	harness := NewHarness(t, "project", "session")
+	if _, err := harness.ResolvePath("../outside"); err == nil {
+		t.Fatal("path escape was accepted")
+	}
+}
+
 func TestHarnessProvidesIndependentProjectDatabasePaths(t *testing.T) {
 	first := NewHarness(t, "project-alpha", "session-one")
 	second := NewHarness(t, "project-beta", "session-two")

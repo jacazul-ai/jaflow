@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/jacazul-ai/jaflow/internal/storage/sqlite"
+	"github.com/jacazul-ai/jaflow/internal/task"
 	"github.com/jacazul-ai/jaflow/internal/testharness"
 )
 
@@ -377,4 +380,65 @@ func TestPlansPreserveFiltersAndListOutput(t *testing.T) {
 	if !strings.Contains(output, "open-plan") || !strings.Contains(output, "closed-plan-2") {
 		t.Fatalf("all plans output = %q, want both plans", output)
 	}
+}
+
+func TestFocusPlanNeverSelectsBlockedTask(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, harness.DatabasePath)
+	if err != nil {
+		t.Fatalf("open focus safety database: %v", err)
+	}
+	initiative, err := store.GetOrCreateInitiative(ctx, task.CreateInitiativeInput{
+		ProjectID: harness.ProjectID,
+		Name:      "focus-safety",
+	})
+	if err != nil {
+		store.Close()
+		t.Fatalf("create focus safety initiative: %v", err)
+	}
+	create := func(description string, dependencies ...string) task.Task {
+		t.Helper()
+		created, err := store.CreateTask(ctx, task.CreateTaskInput{
+			InitiativeID: initiative.ID,
+			Description:  description,
+			Dependencies: dependencies,
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", description, err)
+		}
+		return created
+	}
+	active := create("Active task")
+	blocking := create("Blocking task")
+	blocked := create("Blocked task", blocking.ID)
+	ready := create("Ready task")
+	for _, current := range []task.Task{active, blocking} {
+		if err := store.StartTask(ctx, current.ID); err != nil {
+			store.Close()
+			t.Fatalf("start %s: %v", current.Description, err)
+		}
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close focus safety database: %v", err)
+	}
+
+	output, err := runJaflow(t, binary, harness, "focus", "plan", "focus-safety")
+	if err != nil {
+		t.Fatalf("focus safety plan: %v\n%s", err, output)
+	}
+	if !strings.Contains(output, "Next task "+shortIDForTest(ready.ID)) {
+		t.Fatalf("focus output = %q, want ready task", output)
+	}
+	if strings.Contains(output, shortIDForTest(blocked.ID)) {
+		t.Fatalf("focus output selected blocked task: %q", output)
+	}
+}
+
+func shortIDForTest(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
 }
