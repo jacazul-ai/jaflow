@@ -513,6 +513,25 @@ var helpEntries = []helpEntry{
 		next:     "Run 'jaflow roadmap show' to verify the shipped phase.",
 	},
 	{
+		name:    "migrate",
+		summary: "Import legacy workflow state",
+		usage:   "jaflow migrate taskwarrior --source <export.json> [--apply]",
+		role:    "Use this explicit boundary to move isolated Taskwarrior state into native Jaflow.",
+		preconditions: []string{
+			"Provide an explicit export snapshot; dry-run is the default.",
+			"Use --apply only after reviewing the migration report.",
+		},
+		effects: []string{
+			"Maps initiatives, UUIDs, dependencies, metadata, annotations, focus, and sessions.",
+			"Never imports derived caches or calls a ticket broker.",
+		},
+		examples: []string{
+			"jaflow migrate taskwarrior --source /tmp/tasks.json",
+			"jaflow migrate taskwarrior --source /tmp/tasks.json --apply",
+		},
+		next: "Run the dry-run first and review retained-data warnings before applying.",
+	},
+	{
 		name:    "cache",
 		summary: "Inspect or clear derived output cache",
 		usage:   "jaflow cache [info|clear [status|ponder]]",
