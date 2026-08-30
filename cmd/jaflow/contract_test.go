@@ -262,6 +262,107 @@ func TestRoadmapInitializationHasDuplicateGuard(t *testing.T) {
 	}
 }
 
+func TestTaskWritePreservesOtherInitiativeStatusCache(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+	output, err := runJaflow(t, binary, harness, "plan", "cache-a", "Task A")
+	if err != nil {
+		t.Fatalf("create cache-a plan: %v\n%s", err, output)
+	}
+	match := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		t.Fatalf("cache-a output = %q, want task UUID", output)
+	}
+	taskID := match[1]
+	if output, err := runJaflow(t, binary, harness, "plan", "cache-b", "Task B"); err != nil {
+		t.Fatalf("create cache-b plan: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-a"); err != nil {
+		t.Fatalf("prime cache-a: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-b"); err != nil {
+		t.Fatalf("prime cache-b: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "note", taskID, "decision", "Only A changed"); err != nil {
+		t.Fatalf("annotate cache-a: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-b"); err != nil || !strings.Contains(output, "[cached]") {
+		t.Fatalf("cache-b after cache-a write = %q, err %v; want cached", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-a"); err != nil || strings.Contains(output, "[cached]") {
+		t.Fatalf("cache-a after own write = %q, err %v; want refresh", output, err)
+	}
+}
+
+func TestRoadmapShipChangesPhase(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+	if output, err := runJaflow(t, binary, harness, "plan", "roadmap", "Task"); err != nil {
+		t.Fatalf("create roadmap plan: %v\n%s", err, output)
+	}
+	output, err := runJaflow(t, binary, harness, "roadmap", "init")
+	if err != nil {
+		t.Fatalf("initialize roadmap: %v\n%s", err, output)
+	}
+	output, err = runJaflow(t, binary, harness, "roadmap", "add", "--phase", "next", "--description", "Ship this phase")
+	if err != nil {
+		t.Fatalf("add roadmap phase: %v\n%s", err, output)
+	}
+	match := regexp.MustCompile(`Roadmap phase added: \[next\] Ship this phase \(([^)]+)\)`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		t.Fatalf("roadmap add output = %q, want entry ID", output)
+	}
+	output, err = runJaflow(t, binary, harness, "roadmap", "ship", match[1])
+	if err != nil || !strings.Contains(output, "Phase shipped: Ship this phase") {
+		t.Fatalf("roadmap ship = %q, err %v; want shipped phase", output, err)
+	}
+	output, err = runJaflow(t, binary, harness, "roadmap", "show")
+	if err != nil || !strings.Contains(output, "[shipped] Ship this phase") {
+		t.Fatalf("roadmap after ship = %q, err %v; want shipped marker", output, err)
+	}
+}
+
+func TestLifecycleAndFocusInvalidateStatusCache(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+	output, err := runJaflow(t, binary, harness, "plan", "cache-lifecycle", "Task")
+	if err != nil {
+		t.Fatalf("create cache-lifecycle plan: %v\n%s", err, output)
+	}
+	match := regexp.MustCompile(`Created task ([0-9a-f]{8})`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		t.Fatalf("plan output = %q, want task UUID", output)
+	}
+	taskID := match[1]
+	if output, err := runJaflow(t, binary, harness, "status", "cache-lifecycle"); err != nil {
+		t.Fatalf("prime lifecycle cache: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "execute", taskID); err != nil {
+		t.Fatalf("execute cache task: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-lifecycle"); err != nil || strings.Contains(output, "[cached]") {
+		t.Fatalf("status after execute = %q, err %v; want refreshed cache", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-lifecycle"); err != nil || !strings.Contains(output, "[cached]") {
+		t.Fatalf("reprimed lifecycle cache = %q, err %v; want cached status", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "outcome", taskID, "Ready"); err != nil {
+		t.Fatalf("record cache outcome: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-lifecycle"); err != nil || strings.Contains(output, "[cached]") {
+		t.Fatalf("status after outcome = %q, err %v; want refreshed cache", output, err)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-lifecycle"); err != nil {
+		t.Fatalf("prime focus cache: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "focus", "task", taskID); err != nil {
+		t.Fatalf("focus cache task: %v\n%s", err, output)
+	}
+	if output, err := runJaflow(t, binary, harness, "status", "cache-lifecycle"); err != nil || strings.Contains(output, "[cached]") {
+		t.Fatalf("status after focus = %q, err %v; want refreshed cache", output, err)
+	}
+}
+
 func TestActiveBlockedAndOverdueViews(t *testing.T) {
 	binary := buildJaflow(t)
 	harness := testharness.NewHarness(t, "project", "session")

@@ -55,7 +55,7 @@ areas:
 | Cache | `cache_test.py` | Port storage, TTL, cached signals, force refresh, selective invalidation, and session isolation |
 | Dashboard | `flow_test.py`, `test_recently_closed.py` | Port status, ponder, plans, filters, history, and output contracts |
 | Backlog | `test_backlog.py` | Port hide/show/activate behavior and state markers |
-| Roadmap | `test_roadmap_init_guard.py` | Port duplicate-ledger protection for pending and completed phases |
+| Roadmap | `test_roadmap_init_guard.py` | Port duplicate-ledger protection for pending and completed phases plus roadmap phase shipping |
 | Safety | `security_test.py`, `flow_test.py` | Port workflow vaccination, outcome gates, and actionable errors |
 | Operational output | `AGENTS.md` Error as Prompt/Prompt as Ad rules | Keep healthy verification quiet, emit state changes, and provide `ACTION:` guidance on failures |
 | Ticket boundary | selected `flow_test.py` tests | Port metadata persistence and inherited ticket awareness; provider brokers remain external |
@@ -153,7 +153,7 @@ keeping tests inside the slice that they protect:
 5. Implement focus and context: task stack, smart focus, independent sessions,
    annotations, inherited context, ticket metadata, and session-scoped cache.
 6. Implement dashboards and derived views: status, ponder, plans, cache TTL,
-   cached signals, force refresh, invalidation, backlog, roadmap, recently
+   cached signals, force refresh, invalidation, backlog, roadmap shipping, recently
    closed history, tree, and commit drafts.
 7. Perform final safety, parity, mutation, documentation, race, and vet review.
 

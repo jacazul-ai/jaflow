@@ -138,6 +138,9 @@ func (cmd *FocusPlanCommand) execute(args []string, independent bool) error {
 	if err := store.SaveFocus(context.Background(), state); err != nil {
 		return err
 	}
+	if err := clearTaskCaches(store, cmd.appOpts, task.Task{InitiativeName: initiative.Name}); err != nil {
+		return err
+	}
 	if independent {
 		fmt.Printf("Independent focus anchored to plan: %s\n", initiative.Name)
 	} else {
@@ -191,6 +194,9 @@ func (cmd *FocusTaskCommand) execute(args []string, independent bool) error {
 	if err := store.SaveFocus(context.Background(), state); err != nil {
 		return err
 	}
+	if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
+		return err
+	}
 	fmt.Printf("Focused task %s: %s\n", shortID(current.ID), current.Description)
 	return nil
 }
@@ -230,6 +236,19 @@ func (cmd *FocusPopCommand) Execute(args []string) error {
 	}
 	if err := store.SaveFocus(context.Background(), state); err != nil {
 		return err
+	}
+	if state.FocusedTaskID == "" {
+		if err := store.ClearCache(context.Background(), cmd.appOpts.ProjectID, cmd.appOpts.SessionID, ""); err != nil {
+			return err
+		}
+	} else {
+		current, err := store.GetTask(context.Background(), state.FocusedTaskID)
+		if err != nil {
+			return err
+		}
+		if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
+			return err
+		}
 	}
 	fmt.Printf("Focus popped; current task: %s\n", displayTaskID(state.FocusedTaskID))
 	return nil
@@ -291,6 +310,9 @@ func (cmd *FocusClearCommand) Execute(args []string) error {
 		TaskStack: []task.FocusEntry{},
 	}
 	if err := store.SaveFocus(context.Background(), state); err != nil {
+		return err
+	}
+	if err := store.ClearCache(context.Background(), cmd.appOpts.ProjectID, cmd.appOpts.SessionID, ""); err != nil {
 		return err
 	}
 	fmt.Println("Focus cleared")

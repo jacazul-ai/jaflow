@@ -14,6 +14,7 @@ type RoadmapCommand struct {
 	Show RoadmapShowCommand `command:"show" description:"Show the roadmap ledger"`
 	Init RoadmapInitCommand `command:"init" description:"Initialize the roadmap ledger"`
 	Add  RoadmapAddCommand  `command:"add" description:"Add a roadmap phase"`
+	Ship RoadmapShipCommand `command:"ship" description:"Ship a roadmap phase"`
 }
 
 // Execute requires a roadmap subcommand.
@@ -106,17 +107,46 @@ func (cmd *RoadmapAddCommand) Execute(args []string) error {
 		return err
 	}
 	defer store.Close()
-	if err := store.AddRoadmapEntry(context.Background(), task.RoadmapEntry{
+	entry := task.RoadmapEntry{
 		ID:           newRoadmapID(),
 		ProjectID:    cmd.appOpts.ProjectID,
 		InitiativeID: cmd.InitiativeID,
 		Phase:        cmd.Phase,
 		Description:  cmd.Description,
 		Status:       task.Pending,
-	}); err != nil {
+	}
+	if err := store.AddRoadmapEntry(context.Background(), entry); err != nil {
 		return err
 	}
-	fmt.Printf("Roadmap phase added: [%s] %s\n", cmd.Phase, cmd.Description)
+	fmt.Printf("Roadmap phase added: [%s] %s (%s)\n", cmd.Phase, cmd.Description, entry.ID)
+	return nil
+}
+
+// RoadmapShipCommand marks one roadmap phase as shipped.
+type RoadmapShipCommand struct {
+	appOpts *config.AppOptions
+}
+
+// SetAppOptions supplies project options to the command.
+func (cmd *RoadmapShipCommand) SetAppOptions(opts *config.AppOptions) {
+	cmd.appOpts = opts
+}
+
+// Execute marks a roadmap phase as shipped by ID or description.
+func (cmd *RoadmapShipCommand) Execute(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("roadmap ship requires one roadmap entry ID\nACTION: Run 'jaflow help roadmap'.")
+	}
+	store, err := openStore(cmd.appOpts)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	entry, err := store.ShipRoadmapEntry(context.Background(), cmd.appOpts.ProjectID, args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Phase shipped: %s ✓\n", entry.Description)
 	return nil
 }
 

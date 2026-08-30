@@ -30,10 +30,17 @@ func (cmd *ExecuteCommand) Execute(args []string) error {
 		return err
 	}
 	defer store.Close()
-	if err := store.StartTask(context.Background(), taskID); err != nil {
+	current, err := store.GetTask(context.Background(), taskID)
+	if err != nil {
 		return err
 	}
-	fmt.Printf("Started task %s\n", shortID(taskID))
+	if err := store.StartTask(context.Background(), current.ID); err != nil {
+		return err
+	}
+	if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
+		return err
+	}
+	fmt.Printf("Started task %s\n", shortID(current.ID))
 	return nil
 }
 
@@ -57,10 +64,17 @@ func (cmd *OutcomeCommand) Execute(args []string) error {
 		return err
 	}
 	defer store.Close()
-	if err := store.RecordOutcome(context.Background(), args[0], strings.Join(args[1:], " ")); err != nil {
+	current, err := store.GetTask(context.Background(), args[0])
+	if err != nil {
 		return err
 	}
-	fmt.Printf("Recorded outcome for task %s\n", shortID(args[0]))
+	if err := store.RecordOutcome(context.Background(), current.ID, strings.Join(args[1:], " ")); err != nil {
+		return err
+	}
+	if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
+		return err
+	}
+	fmt.Printf("Recorded outcome for task %s\n", shortID(current.ID))
 	return nil
 }
 
@@ -89,7 +103,10 @@ func (cmd *DoneCommand) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := store.CompleteTask(context.Background(), taskID); err != nil {
+	if err := store.CompleteTask(context.Background(), current.ID); err != nil {
+		return err
+	}
+	if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
 		return err
 	}
 	fmt.Printf("Completed task %s\n", shortID(current.ID))
@@ -125,10 +142,17 @@ func (cmd *ReopenCommand) Execute(args []string) error {
 		return err
 	}
 	defer store.Close()
-	if err := store.ReopenTask(context.Background(), taskID); err != nil {
+	current, err := store.GetTask(context.Background(), taskID)
+	if err != nil {
 		return err
 	}
-	fmt.Printf("Reopened task %s\n", shortID(taskID))
+	if err := store.ReopenTask(context.Background(), current.ID); err != nil {
+		return err
+	}
+	if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
+		return err
+	}
+	fmt.Printf("Reopened task %s\n", shortID(current.ID))
 	return nil
 }
 
@@ -153,10 +177,17 @@ func (cmd *DiscardCommand) Execute(args []string) error {
 		return err
 	}
 	defer store.Close()
-	if err := store.DiscardTask(context.Background(), taskID); err != nil {
+	current, err := store.GetTask(context.Background(), taskID)
+	if err != nil {
 		return err
 	}
-	fmt.Printf("Discarded task %s\n", shortID(taskID))
+	if err := store.DiscardTask(context.Background(), current.ID); err != nil {
+		return err
+	}
+	if err := clearTaskCaches(store, cmd.appOpts, current); err != nil {
+		return err
+	}
+	fmt.Printf("Discarded task %s\n", shortID(current.ID))
 	return nil
 }
 

@@ -64,6 +64,9 @@ func (cmd *PlanCommand) Execute(args []string) error {
 		fmt.Printf("Created task %s: %s\n", created.ID[:8], created.Description)
 		previous = created.ID
 	}
+	if err := clearTaskCaches(store, cmd.appOpts, task.Task{InitiativeName: initiative.Name}); err != nil {
+		return err
+	}
 	return nil
 }
 

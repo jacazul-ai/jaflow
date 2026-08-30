@@ -382,7 +382,7 @@ var helpEntries = []helpEntry{
 	{
 		name:    "roadmap",
 		summary: "Manage the project roadmap ledger",
-		usage:   "jaflow roadmap <show|init|add>",
+		usage:   "jaflow roadmap <show|init|add|ship>",
 		role:    "Use this to keep strategic initiative phases separate from operational task chains.",
 		preconditions: []string{
 			"roadmap init is allowed only when no roadmap ledger exists for the project.",
@@ -390,12 +390,14 @@ var helpEntries = []helpEntry{
 		},
 		effects: []string{
 			"roadmap init projects current initiatives into strategic phases.",
+			"roadmap ship marks one ledger entry shipped and preserves its history.",
 			"Duplicate initialization fails with an ACTION instead of creating a second ledger.",
 		},
 		examples: []string{
 			"jaflow roadmap show",
 			"jaflow roadmap init",
 			"jaflow roadmap add --phase next --description 'Define release plan'",
+			"jaflow roadmap ship roadmap-123",
 		},
 		next: "Use 'jaflow roadmap show' before changing an existing phase.",
 	},

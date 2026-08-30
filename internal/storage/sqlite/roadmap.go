@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -114,6 +115,51 @@ func (s *Store) AddRoadmapEntry(ctx context.Context, entry task.RoadmapEntry) er
 		return fmt.Errorf("add roadmap entry: %w", err)
 	}
 	return nil
+}
+
+// ShipRoadmapEntry marks a roadmap entry as shipped by ID or description.
+func (s *Store) ShipRoadmapEntry(ctx context.Context, projectID string, identifier string) (task.RoadmapEntry, error) {
+	if projectID == "" || strings.TrimSpace(identifier) == "" {
+		return task.RoadmapEntry{}, errors.New("project ID and roadmap entry are required")
+	}
+	var entry task.RoadmapEntry
+	var status string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, project_id, COALESCE(initiative_id, ''), phase,
+		       description, status
+		FROM roadmap_entries
+		WHERE project_id = ? AND (id = ? OR description = ?)
+	`, projectID, identifier, identifier).Scan(
+		&entry.ID,
+		&entry.ProjectID,
+		&entry.InitiativeID,
+		&entry.Phase,
+		&entry.Description,
+		&status,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return task.RoadmapEntry{}, fmt.Errorf(
+			"roadmap entry %q not found\nACTION: Run 'jaflow roadmap show' to list valid entries.", identifier,
+		)
+	}
+	if err != nil {
+		return task.RoadmapEntry{}, fmt.Errorf("find roadmap entry: %w", err)
+	}
+	entry.Status = task.Status(status)
+	if entry.Phase == "shipped" || entry.Status == task.Completed {
+		return task.RoadmapEntry{}, fmt.Errorf("roadmap entry %q is already shipped", entry.Description)
+	}
+	_, err = s.db.ExecContext(ctx, `
+		UPDATE roadmap_entries
+		SET phase = 'shipped', status = ?, updated_at = ?
+		WHERE project_id = ? AND id = ?
+	`, task.Completed, timestamp(), projectID, entry.ID)
+	if err != nil {
+		return task.RoadmapEntry{}, fmt.Errorf("ship roadmap entry: %w", err)
+	}
+	entry.Phase = "shipped"
+	entry.Status = task.Completed
+	return entry, nil
 }
 
 func roadmapPhase(summary task.InitiativeSummary) string {
