@@ -21,7 +21,11 @@ func getVersion() string {
 
 func main() {
 	var opts config.AppOptions
-	os.Args = append([]string{os.Args[0]}, normalizeFocusAlias(os.Args[1:])...)
+	arguments := os.Args[1:]
+	if len(arguments) == 0 {
+		arguments = []string{"help"}
+	}
+	os.Args = append([]string{os.Args[0]}, normalizeFocusAlias(arguments)...)
 
 	parser := flags.NewParser(&opts, flags.Default&^flags.PrintErrors)
 	parser.Usage = "[Options] command"

@@ -97,6 +97,23 @@ func TestRootHelpGroupsCanonicalCommandsByIntent(t *testing.T) {
 	}
 }
 
+func TestEmptyInvocationMatchesHelpCommandExactly(t *testing.T) {
+	binary := buildJaflow(t)
+	harness := testharness.NewHarness(t, "project", "session")
+
+	expected, err := runJaflow(t, binary, harness, "help")
+	if err != nil {
+		t.Fatalf("explicit help: %v\n%s", err, expected)
+	}
+	actual, err := runJaflow(t, binary, harness)
+	if err != nil {
+		t.Fatalf("empty invocation: %v\n%s", err, actual)
+	}
+	if actual != expected {
+		t.Fatalf("empty invocation differs from help\nempty:\n%s\nhelp:\n%s", actual, expected)
+	}
+}
+
 func TestHelpAliasesRemainDetailedAndRoutable(t *testing.T) {
 	binary := buildJaflow(t)
 	harness := testharness.NewHarness(t, "project", "session")
