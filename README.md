@@ -57,6 +57,8 @@ The local engine should also be designed so it can connect to a centralized serv
   implementation backlog, and parity completion criteria.
 - [Migration](docs/migration.md): Taskwarrior mapping, safety, idempotency,
   verification, cutover, and rollback.
+- [CLI navigation](docs/cli.md): intent-first help taxonomy, aliases, and
+  workflow navigation examples.
 
 ## Consumer project
 
