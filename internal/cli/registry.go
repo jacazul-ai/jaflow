@@ -57,5 +57,8 @@ func registerCommand(parser *flags.Parser, name string, command flags.Commander)
 	if !ok {
 		panic("command is missing from help catalog: " + name)
 	}
+	if entry.group == "" || entry.canonical == "" {
+		panic("command is missing help taxonomy metadata: " + name)
+	}
 	parser.AddCommand(name, entry.summary, entry.role, command)
 }
